@@ -34,6 +34,7 @@ impl DerefMut for Memory {
 }
 
 impl Memory {
+    /// Create a new `Memory` from the passed byte slice.
     #[allow(clippy::needless_lifetimes)]
     pub fn new<'a>(m: &'a mut [u8]) -> &'a mut Memory {
         // We explicitly specify the lifetimes here to ensure that the cast doesn't inadvertently
@@ -52,17 +53,109 @@ impl Memory {
         }
     }
 
+    /// Returns an immutable slice of wasm memory, checking to make sure it's in-bounds.
     pub fn try_slice(&self, offset: u32, len: u32) -> Result<&[u8]> {
         self.get(offset as usize..)
             .and_then(|data| data.get(..len as usize))
             .ok_or_else(|| format!("buffer {} (length {}) out of bounds", offset, len))
             .or_error(ErrorNumber::IllegalArgument)
     }
+
+    /// Returns a mutable slice of wasm memory, checking to see if it's in-bounds.
     pub fn try_slice_mut(&mut self, offset: u32, len: u32) -> Result<&mut [u8]> {
         self.get_mut(offset as usize..)
             .and_then(|data| data.get_mut(..len as usize))
             .ok_or_else(|| format!("buffer {} (length {}) out of bounds", offset, len))
             .or_error(ErrorNumber::IllegalArgument)
+    }
+
+    /// Returns many mutable slices into wasm memory.
+    ///
+    /// 1. The slices must not overlap, and must be in-range.
+    /// 2. Empty slices must be in-range, but are never considered to overlap.
+    pub fn try_slice_many<'a, const S: usize>(
+        &'a mut self,
+        ranges: [(u32, u32); S],
+    ) -> Result<[&'a mut [u8]; S]> {
+        // Algorithm:
+        //
+        // 1. Create an index of the ranges, and sort by range start.
+        // 2. Slice from memory in-order, checking that ranges don't overlapp and are "in-bounds".
+        // 3. Return an array of slices in the original order.
+
+        // Helper function to generate arrays of empty mutable slices.
+        fn empty_slices<'a, const S: usize, T>() -> [&'a mut [T]; S] {
+            // We could do this with some unsafety, but I assume rust will just optimize this out
+            // either way.
+            [(); S].map(|_| &mut [][..])
+        }
+
+        // First, check the two base-cases (0 & 1). Given that S is a constant, most of this logic
+        // should compile down to a no-op.
+        match S {
+            0 => return Ok(empty_slices()),
+            1 => {
+                let (off, len) = ranges[0];
+                let mut ret = empty_slices();
+                ret[0] = self.try_slice_mut(off, len)?;
+                return Ok(ret);
+            }
+            _ => {}
+        }
+
+        // 1. Create an index by range start...
+        let mut sorted_indexes: [usize; S] = [0; S];
+        for (i, element) in sorted_indexes.iter_mut().enumerate() {
+            *element = i;
+        }
+        // ...and sort the index by range start.
+        sorted_indexes.sort_unstable_by_key(|&i| ranges[i].0);
+
+        // 3. Split into sub-slices.
+        //
+        // We could use uninitialzied memory here, but I assume this code will optimize well
+        // anyways.
+        let mut output: [&mut [u8]; S] = empty_slices();
+
+        let mut mem = &mut self.0; // The memory we can still address.
+        let mut mem_offset = 0u64; // The offset where `mem` begins.
+        let addressable_range = mem.len() as u64; // The total addressable range.
+
+        for idx in sorted_indexes {
+            let (off, len) = ranges[idx];
+            // Do everything with u64 to avoid having to do overflow checks. We're just doing
+            // addition, no multiplication.
+            let off = off as u64;
+            let len = len as u64;
+
+            // Make sure we're in-bounds.
+            let end = off + len;
+            if end > addressable_range {
+                return Err(syscall_error!(IllegalArgument; "memory out of bounds").into());
+            }
+
+            // Now skip zero-length slices. We don't do anything else here, and they _can't_
+            // overlap.
+            if len == 0 {
+                continue;
+            }
+
+            // Make sure we're not overlapping with the previous slice.
+            if off < mem_offset {
+                return Err(syscall_error!(IllegalArgument; "overlapping ranges").into());
+            }
+
+            // Finally, slice.
+            let (slice, rest) = mem[(off - mem_offset) as usize..].split_at_mut(len as usize);
+
+            // Update the memory offset, and the remaining memory.
+            mem_offset = end;
+            mem = rest;
+
+            // 4. And record the slice.
+            output[idx] = slice;
+        }
+        Ok(output)
     }
 
     pub fn read_cid(&self, offset: u32) -> Result<Cid> {
@@ -119,6 +212,8 @@ impl Memory {
 
 #[cfg(test)]
 mod test {
+    use itertools::Itertools;
+
     use super::*;
 
     const RAW: u64 = 0x55;
@@ -182,12 +277,79 @@ mod test {
     fn test_read_slice_out_of_bounds() {
         let mem = Memory::new(&mut []);
         expect_syscall_err!(IllegalArgument, mem.try_slice(10, 0));
+        expect_syscall_err!(IllegalArgument, mem.try_slice(0, 10));
+        expect_syscall_err!(IllegalArgument, mem.try_slice(1, 1));
         expect_syscall_err!(IllegalArgument, mem.try_slice(u32::MAX, 0));
+        expect_syscall_err!(IllegalArgument, mem.try_slice_many([(1, 0)]));
+        for perm in (0u32..4).permutations(4) {
+            match *perm {
+                [a, b, c, d] => {
+                    expect_syscall_err!(IllegalArgument, mem.try_slice_many([(a, b), (c, d)]))
+                }
+                _ => panic!("expected a vector of length 4"),
+            }
+        }
+
+        for perm in [0, u32::MAX].into_iter().permutations(4) {
+            match *perm {
+                [a, b, c, d] => {
+                    expect_syscall_err!(IllegalArgument, mem.try_slice_many([(a, b), (c, d)]))
+                }
+                _ => panic!("expected a vector of length 4"),
+            }
+        }
     }
 
     #[test]
     fn test_read_slice_empty() {
         let mem = Memory::new(&mut []);
-        mem.try_slice(0, 0).expect("slice was in bounds");
+        assert!(mem.try_slice(0, 0).expect("slice was in bounds").is_empty());
+        assert!(mem
+            .try_slice_many([])
+            .expect("slice was in bounds")
+            .is_empty());
+        let [slice] = mem.try_slice_many([(0, 0)]).expect("slice was in bounds");
+        assert!(slice.is_empty());
+        assert!(mem
+            .try_slice_many([(0, 0), (0, 0), (0, 0)])
+            .expect("slice was in bounds")
+            .into_iter()
+            .all(|s| s.is_empty()))
+    }
+
+    #[test]
+    fn test_read_slice_many() {
+        macro_rules! assert_slices {
+            ([$($($e:expr),*);*], $ee:expr) => {
+                let expected = [$(&mut [$($e),*][..]),*];
+                let _: &[&mut [u8]] = &expected[..]; // type hint
+                assert_eq!(expected, ($ee).unwrap())
+            };
+        }
+
+        let mut vec: Vec<u8> = (1u8..=100).collect();
+        let mem = Memory::new(&mut vec);
+        assert!(mem
+            .try_slice_many([])
+            .expect("no slices always work")
+            .is_empty());
+        assert_slices!([1; 2], mem.try_slice_many([(0, 1), (1, 1)]));
+        assert_slices!([;3;2;;1], mem.try_slice_many([(0, 0), (2, 1), (1, 1), (5, 0), (0, 1)]));
+        // zero-legnth doesn't count as overlapping.
+        assert_slices!([1, 2, 3;], mem.try_slice_many([(0, 3), (1, 0)]));
+        // but these do overlap
+        expect_syscall_err!(IllegalArgument, mem.try_slice_many([(0, 3), (1, 1)]));
+
+        // make sure we can index at the end.
+        assert_slices!([100;], mem.try_slice_many([(99, 1), (0, 0)]));
+
+        // non-zero-length out-of-bounds
+        expect_syscall_err!(IllegalArgument, mem.try_slice_many([(100, 1), (0, 0)]));
+
+        // zero-length almost out-of-bounds
+        assert_slices!([;], mem.try_slice_many([(100, 0), (0, 0)]));
+
+        // zero-length out-of-bounds
+        expect_syscall_err!(IllegalArgument, mem.try_slice_many([(101, 1), (0, 0)]));
     }
 }
