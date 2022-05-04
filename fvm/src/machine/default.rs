@@ -74,7 +74,7 @@ where
             ));
         }
 
-        println!("sanity check");
+        debug!("sanity check");
 
         // Sanity check that the blockstore contains the supplied state root.
         if !blockstore
@@ -87,7 +87,7 @@ where
             ));
         }
 
-        println!("get state tree");
+        debug!("get state tree");
 
         // Create a new state tree from the supplied root.
         let state_tree = {
@@ -95,14 +95,14 @@ where
             StateTree::new_from_root(bstore, &context.initial_state_root)?
         };
 
-        println!("get builtin actors");
+        debug!("get builtin actors");
 
         // Load the built-in actors manifest.
         // TODO: Check that the actor bundle is sane for the network version.
         let (builtin_actors_cid, manifest_version) = match context.builtin_actors_override {
             Some(manifest_cid) => {
 
-                println!("decode manifest");
+                debug!("decode manifest");
 
                 let (version, cid): (u32, Cid) = state_tree
                     .store()
@@ -112,19 +112,19 @@ where
             }
             None => {
 
-                println!("load system actor state");
+                debug!("load system actor state");
 
                 let (state, _) = SystemActorState::load(&state_tree)?;
                 (state.builtin_actors, 1)
             }
         };
 
-        println!("load manifest manifest");
+        debug!("load manifest");
 
         let builtin_actors =
             load_manifest(state_tree.store(), &builtin_actors_cid, manifest_version)?;
 
-        println!("preload builtin actors");
+        debug!("preload builtin actors");
 
         // Preload any uncached modules.
         // This interface works for now because we know all actor CIDs
@@ -132,7 +132,7 @@ where
         // guarantee.
         engine.preload(state_tree.store(), builtin_actors.left_values())?;
 
-        println!("GOOD!");
+        debug!("GOOD!");
 
         Ok(DefaultMachine {
             context: context.clone(),
