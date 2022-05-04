@@ -2,13 +2,13 @@ use std::env;
 
 use fvm::executor::{ApplyKind, Executor};
 use fvm_integration_tests::tester::{Account, Tester};
-use fvm_ipld_encoding::tuple::*;
 use fvm_shared::address::Address;
 use fvm_shared::bigint::BigInt;
 use fvm_shared::message::Message;
 use fvm_shared::state::StateTreeVersion;
 use fvm_shared::version::NetworkVersion;
 use num_traits::Zero;
+use serde_tuple::{Deserialize_tuple, Serialize_tuple};
 
 /// The state object.
 #[derive(Serialize_tuple, Deserialize_tuple, Clone, Debug, Default)]

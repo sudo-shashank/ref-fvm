@@ -6,7 +6,6 @@
 use anyhow::Context;
 use cid::Cid;
 use fvm_ipld_blockstore::Blockstore;
-use fvm_ipld_encoding::tuple::*;
 use fvm_ipld_encoding::{Cbor, CborStore};
 use fvm_shared::address::Address;
 use fvm_shared::bigint::bigint_ser;
@@ -14,6 +13,7 @@ use fvm_shared::clock::ChainEpoch;
 use fvm_shared::econ::TokenAmount;
 use fvm_shared::sector::StoragePower;
 use fvm_shared::smooth::FilterEstimate;
+use serde_tuple::{Deserialize_tuple, Serialize_tuple};
 
 use crate::kernel::{ClassifyResult, Result};
 use crate::state_tree::{ActorState, StateTree};

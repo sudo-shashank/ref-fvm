@@ -7,10 +7,10 @@ mod seal;
 
 use std::fmt;
 
-use fvm_ipld_encoding::repr::*;
-use fvm_ipld_encoding::tuple::*;
 use num_bigint::BigInt;
 use num_derive::FromPrimitive;
+use serde_repr::{Deserialize_repr, Serialize_repr};
+use serde_tuple::{Deserialize_tuple, Serialize_tuple};
 
 pub use self::post::*;
 pub use self::registered_proof::*;

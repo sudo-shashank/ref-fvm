@@ -7,7 +7,6 @@ use std::collections::HashMap;
 use anyhow::{anyhow, Context as _};
 use cid::{multihash, Cid};
 use fvm_ipld_blockstore::Blockstore;
-use fvm_ipld_encoding::tuple::*;
 use fvm_ipld_encoding::CborStore;
 use fvm_ipld_hamt::Hamt;
 use fvm_shared::address::{Address, Payload};
@@ -15,6 +14,7 @@ use fvm_shared::bigint::bigint_ser;
 use fvm_shared::econ::TokenAmount;
 use fvm_shared::state::{StateInfo0, StateRoot, StateTreeVersion};
 use fvm_shared::{ActorID, HAMT_BIT_WIDTH};
+use serde_tuple::{Deserialize_tuple, Serialize_tuple};
 
 use crate::init_actor::State as InitActorState;
 use crate::kernel::{ClassifyResult, Context as _, ExecutionError, Result};

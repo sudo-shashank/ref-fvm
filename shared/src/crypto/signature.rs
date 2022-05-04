@@ -4,10 +4,10 @@
 use std::borrow::Cow;
 use std::error;
 
-use fvm_ipld_encoding::repr::*;
 use fvm_ipld_encoding::{de, ser, serde_bytes, Cbor, Error as EncodingError};
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
+use serde_repr::{Deserialize_repr, Serialize_repr};
 use thiserror::Error;
 
 use crate::address::Error as AddressError;

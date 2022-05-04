@@ -14,11 +14,11 @@ use flate2::bufread::GzDecoder;
 use futures::AsyncRead;
 use fvm_ipld_blockstore::MemoryBlockstore;
 use fvm_ipld_car::load_car;
-use fvm_ipld_encoding::tuple::*;
 use fvm_shared::clock::ChainEpoch;
 use fvm_shared::crypto::randomness::DomainSeparationTag;
 use fvm_shared::receipt::Receipt;
 use serde::{Deserialize, Deserializer};
+use serde_tuple::Deserialize_tuple;
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct StateTreeVector {

@@ -3,8 +3,8 @@
 
 use cid::Cid;
 use clock::ChainEpoch;
-use fvm_ipld_encoding::tuple::*;
 use fvm_ipld_encoding::{serde_bytes, Cbor};
+use serde_tuple::{Deserialize_tuple, Serialize_tuple};
 
 use crate::randomness::Randomness;
 use crate::sector::{
