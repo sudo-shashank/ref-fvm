@@ -74,6 +74,8 @@ where
             ));
         }
 
+        println!("sanity check");
+
         // Sanity check that the blockstore contains the supplied state root.
         if !blockstore
             .has(&context.initial_state_root)
@@ -85,16 +87,23 @@ where
             ));
         }
 
+        println!("get state tree");
+
         // Create a new state tree from the supplied root.
         let state_tree = {
             let bstore = BufferedBlockstore::new(blockstore);
             StateTree::new_from_root(bstore, &context.initial_state_root)?
         };
 
+        println!("get builtin actors");
+
         // Load the built-in actors manifest.
         // TODO: Check that the actor bundle is sane for the network version.
         let (builtin_actors_cid, manifest_version) = match context.builtin_actors_override {
             Some(manifest_cid) => {
+
+                println!("decode manifest");
+
                 let (version, cid): (u32, Cid) = state_tree
                     .store()
                     .get_cbor(&manifest_cid)?
@@ -102,18 +111,28 @@ where
                 (cid, version)
             }
             None => {
+
+                println!("load system actor state");
+
                 let (state, _) = SystemActorState::load(&state_tree)?;
                 (state.builtin_actors, 1)
             }
         };
+
+        println!("load manifest manifest");
+
         let builtin_actors =
             load_manifest(state_tree.store(), &builtin_actors_cid, manifest_version)?;
+
+        println!("preload builtin actors");
 
         // Preload any uncached modules.
         // This interface works for now because we know all actor CIDs
         // ahead of time, but with user-supplied code, we won't have that
         // guarantee.
         engine.preload(state_tree.store(), builtin_actors.left_values())?;
+
+        println!("GOOD!");
 
         Ok(DefaultMachine {
             context: context.clone(),
