@@ -10,7 +10,7 @@ use fvm_shared::address::Address;
 #[derive(Deserialize_tuple, Serialize_tuple, Arbitrary, Debug)]
 pub struct Payload {
     #[serde(with = "serde_bytes")]
-    pub bytes: Vec<u8>,
+    pub serde_bytes_bytes: Vec<u8>,
     pub integer: u64,
     pub address: Address,
     pub address_vec: Vec<Address>,
