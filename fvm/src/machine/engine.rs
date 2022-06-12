@@ -118,6 +118,8 @@ pub fn default_wasmtime_config() -> wasmtime::Config {
     // wasmtime default: 512KiB
     // Set to something much higher than the instrumented limiter.
     // Note: This is in bytes, while the instrumented limit is in stack elements
+    #[cfg(feature = "testing")]
+    c.async_stack_size(4 << 20).unwrap();
     c.max_wasm_stack(4 << 20).unwrap();
 
     // Execution cost accouting is done through wasm instrumentation,
