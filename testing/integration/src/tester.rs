@@ -177,6 +177,7 @@ where
         let blockstore = state_tree.into_store();
 
         let mut nc = NetworkConfig::new(self.nv);
+        nc.actor_debugging = true;
         nc.override_actors(self.builtin_actors);
 
         let mut mc = nc.for_epoch(0, state_root);
