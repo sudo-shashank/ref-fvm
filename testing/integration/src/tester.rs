@@ -135,7 +135,7 @@ where
         state_cid: Cid,
         actor_address: Address,
         balance: TokenAmount,
-    ) -> Result<()> {
+    ) -> Result<Cid> {
         // Register actor address
         self.state_tree
             .as_mut()
@@ -159,7 +159,7 @@ where
             .set_actor(&actor_address, actor_state)
             .map_err(anyhow::Error::from)?;
 
-        Ok(())
+        Ok(code_cid)
     }
 
     /// Sets the Machine and the Executor in our Tester structure.
