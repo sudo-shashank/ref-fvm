@@ -17,7 +17,7 @@ use crate::{bmap_bytes, init_sized_vec, nodes_for_height, Error};
 
 /// This represents a link to another Node
 #[derive(Debug)]
-pub(super) enum Link<V> {
+pub enum Link<V> {
     /// Unchanged link to data with an atomic cache.
     Cid {
         cid: Cid,
@@ -70,7 +70,7 @@ impl<V> From<Cid> for Link<V> {
 /// Node represents either a shard of values in the form of bytes or links to other nodes
 #[derive(PartialEq, Eq, Debug)]
 #[allow(clippy::large_enum_variant)]
-pub(super) enum Node<V> {
+pub enum Node<V> {
     /// Node is a link node, contains array of Cid or cached sub nodes.
     Link { links: Vec<Option<Link<V>>> },
     /// Leaf node, this array contains only values.

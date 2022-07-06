@@ -12,6 +12,7 @@ use itertools::sorted;
 
 use super::ValueMut;
 use crate::node::{CollapsedNode, Link};
+use crate::root::VersionV3;
 use crate::{
     init_sized_vec, nodes_for_height, Error, Node, Root, DEFAULT_BIT_WIDTH, MAX_HEIGHT, MAX_INDEX,
 };
@@ -38,8 +39,8 @@ use crate::{
 /// let cid = amt.flush().unwrap();
 /// ```
 #[derive(Debug)]
-pub struct Amt<V, BS> {
-    root: Root<V>,
+pub struct Amt<V, BS, AmtVersion = VersionV3> {
+    root: Root<V, AmtVersion>,
     block_store: BS,
 }
 
@@ -49,10 +50,11 @@ impl<V: PartialEq, BS: Blockstore> PartialEq for Amt<V, BS> {
     }
 }
 
-impl<V, BS> Amt<V, BS>
+impl<V, BS, AmtVersion> Amt<V, BS, AmtVersion>
 where
     V: DeserializeOwned + Serialize,
     BS: Blockstore,
+    Root<V, AmtVersion>: Serialize + DeserializeOwned,
 {
     /// Constructor for Root AMT node
     pub fn new(block_store: BS) -> Self {
@@ -74,7 +76,7 @@ where
     /// Constructs an AMT with a blockstore and a Cid of the root of the AMT
     pub fn load(cid: &Cid, block_store: BS) -> Result<Self, Error> {
         // Load root bytes from database
-        let root: Root<V> = block_store
+        let root: Root<V, AmtVersion> = block_store
             .get_cbor(cid)?
             .ok_or_else(|| Error::CidNotFound(cid.to_string()))?;
 
