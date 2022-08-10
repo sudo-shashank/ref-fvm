@@ -463,7 +463,7 @@ where
         })
     }
 
-    fn hash(&mut self, code: u64, data: &[u8]) -> Result<[u8; 32]> {
+    fn hash(&mut self, code: u64, data: &[u8], digest_out: &mut [u8]) -> Result<u32> {
         self.call_manager
             .charge_gas(self.call_manager.price_list().on_hashing(data.len()))?;
 
@@ -476,11 +476,10 @@ where
             .hash_length(32)
             .to_state()
             .update(data)
-            .finalize()
-            .as_bytes()
-            .try_into()
-            .expect("fixed array size");
-        Ok(digest)
+            .finalize();
+        let length = std::cmp::min(digest_out.len(), digest.as_bytes().len());
+        digest_out[..length].copy_from_slice(&digest.as_bytes()[..length]);
+        Ok(length as u32)
     }
 
     fn compute_unsealed_sector_cid(

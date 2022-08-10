@@ -1,5 +1,3 @@
-use std::cmp;
-
 use anyhow::{anyhow, Context as _};
 use fvm_shared::crypto::signature::SignatureType;
 use fvm_shared::piece::PieceInfo;
@@ -54,19 +52,12 @@ pub fn hash(
     digest_len: u32,
 ) -> Result<u32> {
     // Check the digest bounds first so we don't do any work if they're incorrect.
-    context.memory.check_bounds(digest_off, digest_len)?;
+    let [data, digest] = context
+        .memory
+        .try_slice_many([(data_off, data_len), (digest_off, digest_len)])?;
 
     // Then hash.
-    let digest = {
-        let data = context.memory.try_slice(data_off, data_len)?;
-        context.kernel.hash(hash_code, data)?
-    };
-
-    // Then copy the result.
-    let digest_out = context.memory.try_slice_mut(digest_off, digest_len)?;
-    let length = cmp::min(digest_out.len(), digest.len());
-    digest_out[..length].copy_from_slice(&digest[..length]);
-    Ok(length as u32)
+    Ok(context.kernel.hash(hash_code, data, &mut *digest)? as u32)
 }
 
 /// Computes an unsealed sector CID (CommD) from its constituent piece CIDs
