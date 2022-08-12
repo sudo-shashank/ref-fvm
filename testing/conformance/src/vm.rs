@@ -10,7 +10,7 @@ use fvm::machine::{DefaultMachine, Engine, Machine, MachineContext, MultiEngine,
 use fvm::state_tree::{ActorState, StateTree};
 use fvm::DefaultKernel;
 use fvm_ipld_blockstore::MemoryBlockstore;
-use fvm_ipld_car::load_car;
+use fvm_ipld_car::load_car_unchecked;
 use fvm_shared::actor::builtin::Manifest;
 use fvm_shared::address::Address;
 use fvm_shared::bigint::BigInt;
@@ -103,11 +103,11 @@ impl TestMachine<Box<DefaultMachine<MemoryBlockstore, TestExterns>>> {
     }
 
     pub fn import_actors(blockstore: &MemoryBlockstore) -> BTreeMap<NetworkVersion, Cid> {
-        let bundles = [(NetworkVersion::V15, actors_v8::BUNDLE_CAR)];
+        let bundles = [(NetworkVersion::V15, actors_v10::BUNDLE_CAR)];
         bundles
             .into_iter()
             .map(|(nv, car)| {
-                let roots = block_on(async { load_car(blockstore, car).await.unwrap() });
+                let roots = block_on(async { load_car_unchecked(blockstore, car).await.unwrap() });
                 assert_eq!(roots.len(), 1);
                 (nv, roots[0])
             })
@@ -164,6 +164,10 @@ where
 
     fn flush(&mut self) -> Result<Cid> {
         self.machine.flush()
+    }
+
+    fn machine_id(&self) -> &str {
+        self.machine.machine_id()
     }
 }
 
@@ -272,6 +276,10 @@ where
     fn charge_gas(&mut self, charge: fvm::gas::GasCharge) -> Result<()> {
         self.0.charge_gas(charge)
     }
+
+    fn invocation_count(&self) -> u64 {
+        self.0.invocation_count()
+    }
 }
 
 /// A kernel for intercepting syscalls.
@@ -351,6 +359,7 @@ where
         self.0.get_code_cid_for_type(typ)
     }
 
+    #[cfg(feature = "m2-native")]
     fn install_actor(&mut self, _code_id: Cid) -> Result<()> {
         Ok(())
     }
@@ -494,6 +503,10 @@ where
 
     fn debug_enabled(&self) -> bool {
         self.0.debug_enabled()
+    }
+
+    fn store_artifact(&self, name: &str, data: &[u8]) -> Result<()> {
+        self.0.store_artifact(name, data)
     }
 }
 

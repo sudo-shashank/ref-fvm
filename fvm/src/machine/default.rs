@@ -16,6 +16,7 @@ use num_traits::Signed;
 use super::{Engine, Machine, MachineContext};
 use crate::blockstore::BufferedBlockstore;
 use crate::externs::Externs;
+#[cfg(feature = "m2-native")]
 use crate::init_actor::State as InitActorState;
 use crate::kernel::{ClassifyResult, Context as _, Result};
 use crate::state_tree::{ActorState, StateTree};
@@ -38,6 +39,9 @@ pub struct DefaultMachine<B, E> {
     state_tree: StateTree<BufferedBlockstore<B>>,
     /// Mapping of CIDs to builtin actor types.
     builtin_actors: Manifest,
+    /// Somewhat unique ID of the machine consisting of (epoch, randomness)
+    /// randomness is generated with `initial_state_root`
+    id: String,
 }
 
 impl<B, E> DefaultMachine<B, E>
@@ -118,17 +122,23 @@ where
         #[cfg(not(any(test, feature = "testing")))]
         engine.preload(state_tree.store(), builtin_actors.left_values())?;
 
-        // preload user actors that have been installed
-        // TODO This must be revisited when implementing the actively managed cache.
-        // Doesn't need the m2-native feature guard because there's no possiblity
-        // for user code to install new actors if that feature is disabled anyway
-        // (so this would be a no-op). We could add the guard as an optimization, though.
-        let (init_state, _) = InitActorState::load(&state_tree)?;
-        let installed_actors: Vec<Cid> = state_tree
-            .store()
-            .get_cbor(&init_state.installed_actors)?
-            .context("failed to load installed actor list")?;
-        engine.preload(state_tree.store(), &installed_actors)?;
+        #[cfg(feature = "m2-native")]
+        {
+            // preload user actors that have been installed
+            // TODO This must be revisited when implementing the actively managed cache.
+            // Doesn't need the m2-native feature guard because there's no possiblity
+            // for user code to install new actors if that feature is disabled anyway
+            // (so this would be a no-op). We could add the guard as an optimization, though.
+            let (init_state, _) = InitActorState::load(&state_tree)?;
+            let installed_actors: Vec<Cid> = state_tree
+                .store()
+                .get_cbor(&init_state.installed_actors)?
+                .context("failed to load installed actor list")?;
+            engine.preload(state_tree.store(), &installed_actors)?;
+        }
+
+        // 16 bytes is random _enough_
+        let randomness: [u8; 16] = rand::random();
 
         Ok(DefaultMachine {
             context: context.clone(),
@@ -136,6 +146,11 @@ where
             externs,
             state_tree,
             builtin_actors,
+            id: format!(
+                "{}-{}",
+                context.epoch,
+                cid::multibase::encode(cid::multibase::Base::Base32Lower, &randomness)
+            ),
         })
     }
 }
@@ -246,5 +261,9 @@ where
 
     fn into_store(self) -> Self::Blockstore {
         self.state_tree.into_store()
+    }
+
+    fn machine_id(&self) -> &str {
+        &self.id
     }
 }

@@ -182,6 +182,7 @@ pub trait ActorOps {
     fn create_actor(&mut self, code_cid: Cid, actor_id: ActorID) -> Result<()>;
 
     /// Installs actor code pointed by cid
+    #[cfg(feature = "m2-native")]
     fn install_actor(&mut self, code_cid: Cid) -> Result<()>;
 
     /// Returns whether the supplied code_cid belongs to a known built-in actor type.
@@ -333,4 +334,8 @@ pub trait DebugOps {
 
     /// Returns whether debug mode is enabled.
     fn debug_enabled(&self) -> bool;
+
+    /// Store an artifact.
+    /// Returns error on malformed name, returns Ok and logs the error on system/os errors.
+    fn store_artifact(&self, name: &str, data: &[u8]) -> Result<()>;
 }

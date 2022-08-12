@@ -60,12 +60,19 @@ jobs:
           - name: integration
             key: v3
             command: test
-            args: --package fvm_integration_tests --package "*actor"
+            args: --package fvm_integration_tests --features wasm-coverage --package "*actor"
           - name: conformance
             key: v3
             command: test
             args: --package fvm_conformance_tests
             submodules: true
+          # Overrides
+          # skip generating wasm coverage on mac
+          - os: macos-latest 
+            name: integration
+            key: v3
+            command: test
+            args: --package fvm_integration_tests --package "*actor"
         exclude:
           - os: macos-latest
             name: check-clippy
@@ -117,3 +124,27 @@ jobs:
       with:
         files: ${{ matrix.covname }}
         fail_ci_if_error: true
+    - name: Installing Cargo-Cache
+      if: ${{ matrix.push }}
+      uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505 # v1.0.3
+      with:
+        command: install
+        args: cargo-cache
+    - name: Cleaning Cargo Cache
+      if: ${{ matrix.push }}
+      uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505 # v1.0.3
+      with:
+        command: cache
+        args: --autoclean  
+    - name: Getting Cargo Cache Size
+      if: ${{ matrix.push }}
+      uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505 # v1.0.3
+      with:
+        command: cache
+        args: -i
+    - name: Getting sccache size
+      if: ${{ matrix.push }}
+      uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505 # v1.0.3
+      with:
+        command: cache
+        args: sccache
