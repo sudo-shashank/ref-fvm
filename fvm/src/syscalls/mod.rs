@@ -5,7 +5,8 @@ use wasmtime::{AsContextMut, Global, Linker, Memory, Val};
 
 use crate::call_manager::backtrace;
 use crate::gas::Gas;
-use crate::Kernel;
+use crate::{Kernel, CheckedKernel};
+use crate::kernel::BaseKernel;
 
 pub(crate) mod error;
 
@@ -46,7 +47,7 @@ pub struct InvocationData<K> {
 }
 
 pub fn update_gas_available(
-    ctx: &mut impl AsContextMut<Data = InvocationData<impl Kernel>>,
+    ctx: &mut impl AsContextMut<Data = InvocationData<impl BaseKernel>>,
 ) -> Result<(), Abort> {
     let mut ctx = ctx.as_context_mut();
     let avail_milligas = ctx.data_mut().kernel.gas_available().as_milligas();
@@ -62,7 +63,7 @@ pub fn update_gas_available(
 
 /// Updates the FVM-side gas tracker with newly accrued execution gas charges.
 pub fn charge_for_exec(
-    ctx: &mut impl AsContextMut<Data = InvocationData<impl Kernel>>,
+    ctx: &mut impl AsContextMut<Data = InvocationData<impl BaseKernel>>,
 ) -> Result<(), Abort> {
     let mut ctx = ctx.as_context_mut();
     let global = ctx.data_mut().avail_gas_global;
@@ -181,4 +182,10 @@ pub fn bind_syscalls(
     linker.bind("debug", "store_artifact", debug::store_artifact)?;
 
     Ok(())
+}
+
+pub fn bind_validate_syscalls(
+    linker: &mut Linker<InvocationData<impl CheckedKernel + 'static>>,
+) -> anyhow::Result<()> {
+    todo!()
 }

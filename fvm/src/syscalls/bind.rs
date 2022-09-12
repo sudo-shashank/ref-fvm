@@ -7,6 +7,7 @@ use wasmtime::{Caller, Linker, WasmTy};
 use super::context::Memory;
 use super::error::Abort;
 use super::{charge_for_exec, update_gas_available, Context, InvocationData};
+use crate::BaseKernel;
 use crate::call_manager::backtrace;
 use crate::kernel::{self, ExecutionError, Kernel, SyscallError};
 
@@ -84,7 +85,7 @@ where
     }
 }
 
-fn memory_and_data<'a, K: Kernel>(
+fn memory_and_data<'a, K: BaseKernel>(
     caller: &'a mut Caller<'_, InvocationData<K>>,
 ) -> (&'a mut Memory, &'a mut InvocationData<K>) {
     let memory_handle = caller.data().memory;
@@ -107,7 +108,7 @@ macro_rules! impl_bind_syscalls {
         #[allow(non_snake_case)]
         impl<$($t,)* Ret, K, Func> BindSyscall<($($t,)*), Ret, Func> for Linker<InvocationData<K>>
         where
-            K: Kernel,
+            K: BaseKernel,
             Func: Fn(Context<'_, K> $(, $t)*) -> Ret + Send + Sync + 'static,
             Ret: IntoSyscallResult,
            $($t: WasmTy+SyscallSafe,)*
