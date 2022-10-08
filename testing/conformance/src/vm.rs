@@ -107,13 +107,13 @@ impl TestMachine<Box<DefaultMachine<MemoryBlockstore, TestExterns>>> {
     }
 
     pub fn import_actors(blockstore: &MemoryBlockstore) -> BTreeMap<NetworkVersion, Cid> {
-        let bundles = [(NetworkVersion::V15, actors_v7::BUNDLE_CAR)];
+        let bundles: &[(NetworkVersion, &[u8])] = &[/* TODO #638 */];
         bundles
             .into_iter()
             .map(|(nv, car)| {
-                let roots = block_on(async { load_car_unchecked(blockstore, car).await.unwrap() });
+                let roots = block_on(async { load_car_unchecked(blockstore, *car).await.unwrap() });
                 assert_eq!(roots.len(), 1);
-                (nv, roots[0])
+                (*nv, roots[0])
             })
             .collect()
     }
