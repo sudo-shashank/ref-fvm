@@ -17,3 +17,7 @@ overflow-checks = true
 lto = true
 opt-level = "z"
 #strip = true
+
+[patch.crates-io]
+wasmtime = { git = "https://github.com/fitzgen/wasmtime", branch="keep-existing-trap-backtraces" }
+#wasmtime = { git = "https://github.com/bytecodealliance/wasmtime" }
