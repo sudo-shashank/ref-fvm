@@ -29,7 +29,6 @@ use super::hash::SupportedHashes;
 use super::*;
 use crate::call_manager::{CallManager, InvocationResult, NO_DATA_BLOCK_ID};
 use crate::externs::{Consensus, Rand};
-use crate::gas::GasCharge;
 use crate::state_tree::ActorState;
 use crate::syscall_error;
 
@@ -513,19 +512,11 @@ where
 
         // This syscall cannot be resolved inside the FVM, so we need to traverse
         // the node boundary through an extern.
-        let (fault, gas) = self
+        let (fault, _) = self
             .call_manager
             .externs()
             .verify_consensus_fault(h1, h2, extra)
             .or_illegal_argument()?;
-
-        if self.network_version() <= NetworkVersion::V15 {
-            self.call_manager.charge_gas(GasCharge::new(
-                "verify_consensus_fault_accesses",
-                Gas::new(gas),
-                Gas::zero(),
-            ))?;
-        }
 
         Ok(fault)
     }
@@ -727,11 +718,11 @@ where
 
     // TODO(M2) merge new_actor_address and create_actor into a single syscall.
     fn new_actor_address(&mut self) -> Result<Address> {
+        // base the address on the predictable address, or the id address if none exists.
         let oa = self
             .lookup_address(self.call_manager.origin())
             .or_fatal()? // actor not found
-            .context("origin does not have a predictable address")
-            .or_fatal()?; // actor doesn't have a predictable address.
+            .unwrap_or_else(|| Address::new_id(self.call_manager.origin()));
 
         let mut b = to_vec(&oa)
             .or_fatal()
@@ -928,6 +919,23 @@ where
 
     fn limiter_mut(&mut self) -> &mut Self::Limiter {
         self.call_manager.limiter_mut()
+    }
+}
+
+impl<C> EventOps for DefaultKernel<C>
+where
+    C: CallManager,
+{
+    fn emit_event(&mut self, evt: ActorEvent) -> Result<()> {
+        self.call_manager
+            .charge_gas(self.call_manager.price_list().on_actor_event(&evt))?;
+
+        // TODO eventually validate entries
+        //  https://github.com/filecoin-project/ref-fvm/issues/1082
+
+        let evt = StampedEvent::new(self.actor_id, evt);
+        self.call_manager.append_event(evt);
+        Ok(())
     }
 }
 
