@@ -193,6 +193,7 @@ mod test {
     fn round_trip() {
         let buf = &[1u8, 2, 3, 4][..];
         let serialized = to_vec(&BytesSer(buf)).unwrap();
+        println!("{:?}", serialized);
         let result: BytesDe = from_slice(&serialized).unwrap();
         assert_eq!(buf, &result.0);
     }

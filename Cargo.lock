@@ -2758,6 +2758,7 @@ dependencies = [
  "rand",
  "rand_chacha",
  "serde",
+ "serde_ipld_dagcbor",
  "serde_json",
  "serde_repr",
  "serde_tuple",

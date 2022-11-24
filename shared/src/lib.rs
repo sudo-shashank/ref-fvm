@@ -17,6 +17,7 @@ pub mod deal;
 pub mod econ;
 pub mod error;
 pub mod event;
+pub mod ipld_block;
 pub mod math;
 pub mod message;
 pub mod piece;
