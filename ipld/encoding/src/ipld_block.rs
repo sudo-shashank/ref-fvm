@@ -1,9 +1,8 @@
-use crate::codec::DAG_CBOR;
-use crate::codec::IPLD_RAW;
-use crate::CodecProtocol::Cbor;
-use crate::{Error, RawBytes};
-use serde::de::value::BytesDeserializer;
+use serde::de::value;
 use {serde, serde_ipld_dagcbor};
+
+use crate::codec::{DAG_CBOR, IPLD_RAW};
+use crate::{CodecProtocol, Error, RawBytes};
 
 #[derive(Debug, PartialEq, Eq, Clone, Default)]
 pub struct IpldBlock {
@@ -17,9 +16,18 @@ impl IpldBlock {
         T: serde::Deserialize<'de>,
     {
         match self.codec {
-            IPLD_RAW => T::deserialize(BytesDeserializer::new(self.data.as_slice())),
-            DAG_CBOR => serde_ipld_dagcbor::from_slice(self.data.as_slice()).map_err(Into::into),
-            _ => Err(Error { description: "unsupported protocol".to_string(), protocol: Cbor }),
+            IPLD_RAW => T::deserialize(value::BytesDeserializer::<value::Error>::new(
+                self.data.as_slice(),
+            ))
+            .map_err(|e| Error {
+                description: e.to_string(),
+                protocol: CodecProtocol::Raw,
+            }),
+            DAG_CBOR => Ok(serde_ipld_dagcbor::from_slice(self.data.as_slice())?),
+            _ => Err(Error {
+                description: "unsupported protocol".to_string(),
+                protocol: CodecProtocol::Unsupported,
+            }),
         }
     }
     pub fn serialize<T: serde::Serialize + ?Sized>(codec: u64, value: &T) -> Result<Self, Error> {
@@ -30,7 +38,7 @@ impl IpldBlock {
             _ => {
                 return Err(Error {
                     description: "unsupported protocol".to_string(),
-                    protocol: Cbor,
+                    protocol: CodecProtocol::Unsupported,
                 });
             }
         };
@@ -43,6 +51,9 @@ impl IpldBlock {
 
 impl From<RawBytes> for Option<IpldBlock> {
     fn from(other: RawBytes) -> Self {
-        (!other.is_empty()).then(|| IpldBlock { codec: DAG_CBOR, data: other.into() })
+        (!other.is_empty()).then(|| IpldBlock {
+            codec: DAG_CBOR,
+            data: other.into(),
+        })
     }
 }
