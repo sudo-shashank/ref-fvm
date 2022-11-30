@@ -1,8 +1,7 @@
-// Copyright 2021-2023 Protocol Labs
-// SPDX-License-Identifier: Apache-2.0, MIT
+use fvm_ipld_encoding::ipld_block::IpldBlock;
 use std::convert::TryInto;
 
-use fvm_ipld_encoding::{RawBytes, DAG_CBOR};
+use fvm_ipld_encoding::RawBytes;
 use fvm_shared::address::Address;
 use fvm_shared::econ::TokenAmount;
 use fvm_shared::error::{ErrorNumber, ExitCode};
@@ -19,7 +18,7 @@ use crate::{sys, SyscallResult, NO_DATA_BLOCK_ID};
 pub fn send(
     to: &Address,
     method: MethodNum,
-    params: RawBytes,
+    params: Option<IpldBlock>,
     value: TokenAmount,
     gas_limit: Option<u64>,
 ) -> SyscallResult<Receipt> {
@@ -33,14 +32,7 @@ pub fn send_read_only(
     params: RawBytes,
     gas_limit: Option<u64>,
 ) -> SyscallResult<Receipt> {
-    send_raw(
-        to,
-        method,
-        params,
-        TokenAmount::zero(),
-        gas_limit,
-        SendFlags::READ_ONLY,
-    )
+    send_raw(to, method, params, TokenAmount::zero(), gas_limit, SendFlags::READ_ONLY)
 }
 
 fn send_raw(
@@ -52,16 +44,14 @@ fn send_raw(
     flags: SendFlags,
 ) -> SyscallResult<Receipt> {
     let recipient = to.to_bytes();
-    let value: fvm_shared::sys::TokenAmount = value
-        .try_into()
-        .map_err(|_| ErrorNumber::InsufficientFunds)?;
+    let value: fvm_shared::sys::TokenAmount =
+        value.try_into().map_err(|_| ErrorNumber::InsufficientFunds)?;
     unsafe {
         // Insert parameters as a block. Nil parameters is represented as the
         // NO_DATA_BLOCK_ID block ID in the FFI interface.
-        let params_id = if params.len() > 0 {
-            sys::ipld::block_create(DAG_CBOR, params.as_ptr(), params.len() as u32)?
-        } else {
-            NO_DATA_BLOCK_ID
+        let params_id = match params {
+            Some(p) => sys::ipld::block_create(p.codec, p.data.as_ptr(), p.data.len() as u32)?,
+            None => NO_DATA_BLOCK_ID,
         };
 
         // Perform the syscall to send the message.

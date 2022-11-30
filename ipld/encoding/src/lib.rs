@@ -5,7 +5,9 @@
 mod bytes;
 mod cbor;
 mod cbor_store;
+mod codec;
 mod errors;
+pub mod ipld_block;
 mod vec;
 use std::io;
 
