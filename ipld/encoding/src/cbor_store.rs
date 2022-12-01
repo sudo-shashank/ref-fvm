@@ -4,7 +4,7 @@ use cid::{multihash, Cid};
 use fvm_ipld_blockstore::{Block, Blockstore};
 use serde::{de, ser};
 
-use crate::codec::DAG_CBOR;
+use crate::DAG_CBOR;
 
 /// Wrapper for database to handle inserting and retrieving ipld data with Cids
 pub trait CborStore: Blockstore + Sized {

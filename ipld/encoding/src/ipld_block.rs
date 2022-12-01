@@ -3,8 +3,7 @@
 use serde::de::value;
 use {serde, serde_ipld_dagcbor};
 
-use crate::codec::{DAG_CBOR, IPLD_RAW};
-use crate::{CodecProtocol, Error, RawBytes};
+use crate::{CodecProtocol, Error, RawBytes, DAG_CBOR, IPLD_RAW};
 
 #[derive(Debug, PartialEq, Eq, Clone, Default)]
 pub struct IpldBlock {
