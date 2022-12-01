@@ -8,6 +8,7 @@ mod cbor_store;
 mod codec;
 mod errors;
 pub mod ipld_block;
+mod raw;
 mod vec;
 use std::io;
 

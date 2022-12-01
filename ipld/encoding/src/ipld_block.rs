@@ -32,9 +32,8 @@ impl IpldBlock {
     }
     pub fn serialize<T: serde::Serialize + ?Sized>(codec: u64, value: &T) -> Result<Self, Error> {
         let data = match codec {
-            // TODO: Steb will do things
-            // IPLD_RAW: BytesS
-            DAG_CBOR => serde_ipld_dagcbor::to_vec(value)?,
+            IPLD_RAW => crate::raw::to_vec(value)?,
+            DAG_CBOR => crate::to_vec(value)?,
             _ => {
                 return Err(Error {
                     description: "unsupported protocol".to_string(),
