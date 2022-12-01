@@ -71,7 +71,9 @@ impl RawBytes {
 
     /// Contructor for encoding Cbor encodable structure.
     pub fn serialize<O: Serialize>(obj: O) -> Result<Self, Error> {
-        Ok(Self { bytes: to_vec(&obj)? })
+        Ok(Self {
+            bytes: to_vec(&obj)?,
+        })
     }
 
     /// Returns serialized bytes.

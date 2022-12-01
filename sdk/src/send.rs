@@ -1,6 +1,8 @@
-use fvm_ipld_encoding::ipld_block::IpldBlock;
+// Copyright 2021-2023 Protocol Labs
+// SPDX-License-Identifier: Apache-2.0, MIT
 use std::convert::TryInto;
 
+use fvm_ipld_encoding::ipld_block::IpldBlock;
 use fvm_ipld_encoding::RawBytes;
 use fvm_shared::address::Address;
 use fvm_shared::econ::TokenAmount;
@@ -32,7 +34,14 @@ pub fn send_read_only(
     params: RawBytes,
     gas_limit: Option<u64>,
 ) -> SyscallResult<Receipt> {
-    send_raw(to, method, params, TokenAmount::zero(), gas_limit, SendFlags::READ_ONLY)
+    send_raw(
+        to,
+        method,
+        params,
+        TokenAmount::zero(),
+        gas_limit,
+        SendFlags::READ_ONLY,
+    )
 }
 
 fn send_raw(
@@ -44,8 +53,9 @@ fn send_raw(
     flags: SendFlags,
 ) -> SyscallResult<Receipt> {
     let recipient = to.to_bytes();
-    let value: fvm_shared::sys::TokenAmount =
-        value.try_into().map_err(|_| ErrorNumber::InsufficientFunds)?;
+    let value: fvm_shared::sys::TokenAmount = value
+        .try_into()
+        .map_err(|_| ErrorNumber::InsufficientFunds)?;
     unsafe {
         // Insert parameters as a block. Nil parameters is represented as the
         // NO_DATA_BLOCK_ID block ID in the FFI interface.

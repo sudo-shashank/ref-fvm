@@ -1,3 +1,5 @@
+// Copyright 2021-2023 Protocol Labs
+// SPDX-License-Identifier: Apache-2.0, MIT
 use thiserror::Error;
 
 /// Serialize the given value to a vec. This method rejects all types except "raw bytes".

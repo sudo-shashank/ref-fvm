@@ -1,7 +1,10 @@
-use crate::codec::DAG_CBOR;
+// Copyright 2021-2023 Protocol Labs
+// SPDX-License-Identifier: Apache-2.0, MIT
 use cid::{multihash, Cid};
 use fvm_ipld_blockstore::{Block, Blockstore};
 use serde::{de, ser};
+
+use crate::codec::DAG_CBOR;
 
 /// Wrapper for database to handle inserting and retrieving ipld data with Cids
 pub trait CborStore: Blockstore + Sized {
@@ -25,7 +28,13 @@ pub trait CborStore: Blockstore + Sized {
         S: ser::Serialize,
     {
         let bytes = crate::to_vec(obj)?;
-        self.put(code, &Block { codec: DAG_CBOR, data: &bytes })
+        self.put(
+            code,
+            &Block {
+                codec: DAG_CBOR,
+                data: &bytes,
+            },
+        )
     }
 }
 
