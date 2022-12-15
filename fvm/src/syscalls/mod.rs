@@ -14,19 +14,19 @@ use crate::Kernel;
 
 pub(crate) mod error;
 
-mod actor;
-mod bind;
+pub mod actor;
+pub mod bind;
 pub mod context;
-mod crypto;
-mod debug;
-mod event;
-mod gas;
+pub mod crypto;
+pub mod debug;
+pub mod event;
+pub mod gas;
 pub mod ipld;
-mod network;
-mod rand;
-mod send;
-mod sself;
-mod vm;
+pub mod network;
+pub mod rand;
+pub mod send;
+pub mod sself;
+pub mod vm;
 
 pub(self) use context::Context;
 
