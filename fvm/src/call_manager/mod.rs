@@ -7,7 +7,7 @@ use fvm_shared::error::ExitCode;
 use fvm_shared::{ActorID, MethodNum};
 
 use crate::engine::Engine;
-use crate::gas::{Gas, GasCharge, GasTracker, PriceList};
+use crate::gas::{Gas, GasCharge, GasTimer, GasTracker, PriceList};
 use crate::kernel::{self, Result};
 use crate::machine::{Machine, MachineContext};
 use crate::state_tree::StateTree;
@@ -83,6 +83,9 @@ pub trait CallManager: 'static {
     /// Returns a mutable reference to the machine.
     fn machine_mut(&mut self) -> &mut Self::Machine;
 
+    //REturns a reference to the engine
+    fn engine(&self) -> &Engine;
+
     /// Returns a reference to the gas tracker.
     fn gas_tracker(&self) -> &GasTracker;
 
@@ -144,9 +147,8 @@ pub trait CallManager: 'static {
     }
 
     /// Charge gas.
-    fn charge_gas(&self, charge: GasCharge) -> Result<()> {
-        self.gas_tracker().apply_charge(charge)?;
-        Ok(())
+    fn charge_gas(&self, charge: GasCharge) -> Result<GasTimer> {
+        self.gas_tracker().apply_charge(charge)
     }
 
     /// Limit memory usage throughout a message execution.

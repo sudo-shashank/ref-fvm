@@ -42,7 +42,9 @@ jobs:
           - name: build
             key: v3
             push: true
+            # we disable default features because rust will otherwise unify them and turn on opencl in CI.
             command: build
+            args: --no-default-features
           - name: check-clippy
             key: v3
             command: clippy
@@ -59,7 +61,7 @@ jobs:
             key: v3-cov
             covname: lcov.info
             command: llvm-cov
-            args: --all --exclude fvm --exclude fvm_conformance_tests --exclude fvm_integration_tests --exclude "*actor" --lcov --output-path lcov.info
+            args: --all --exclude fvm --exclude fvm_conformance_tests --exclude fvm_integration_tests --exclude fvm_gas_calibration --exclude "*actor" --lcov --output-path lcov.info
             components: llvm-tools-preview
           - name: integration
             key: v3

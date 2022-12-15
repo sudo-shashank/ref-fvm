@@ -19,7 +19,7 @@ use super::{Backtrace, CallManager, InvocationResult, NO_DATA_BLOCK_ID};
 use crate::call_manager::backtrace::Frame;
 use crate::call_manager::FinishRet;
 use crate::engine::Engine;
-use crate::gas::{Gas, GasTracker};
+use crate::gas::{Gas, GasTimer, GasTracker};
 use crate::kernel::{Block, BlockRegistry, ExecutionError, Kernel, Result, SyscallError};
 use crate::machine::limiter::ExecMemory;
 use crate::machine::Machine;
@@ -27,7 +27,7 @@ use crate::state_tree::ActorState;
 use crate::syscalls::error::Abort;
 use crate::syscalls::{charge_for_exec, update_gas_available};
 use crate::trace::{ExecutionEvent, ExecutionTrace};
-use crate::{account_actor, syscall_error};
+use crate::{syscall_error, system_actor};
 
 /// The default [`CallManager`] implementation.
 #[repr(transparent)]
@@ -273,6 +273,10 @@ where
         &mut self.machine
     }
 
+    fn engine(&self) -> &Engine {
+        &self.engine
+    }
+
     fn gas_tracker(&self) -> &GasTracker {
         &self.gas_tracker
     }
@@ -314,6 +318,7 @@ where
         actor_id: ActorID,
         predictable_address: Option<Address>,
     ) -> Result<()> {
+        let start = GasTimer::start();
         // TODO https://github.com/filecoin-project/builtin-actors/issues/492
         let singleton = self.machine.builtin_actors().is_singleton_actor(&code_id);
 
@@ -351,9 +356,10 @@ where
             // Create a new actor.
             None => (ActorState::new_empty(code_id, predictable_address), true),
         };
-        self.charge_gas(self.price_list().on_create_actor(is_new))?;
+        let t = self.charge_gas(self.price_list().on_create_actor(is_new))?;
         self.state_tree_mut().set_actor(actor_id, actor)?;
         self.num_actors_created += 1;
+        t.stop_with(start);
         Ok(())
     }
 
@@ -386,7 +392,7 @@ where
     where
         K: Kernel<CallManager = Self>,
     {
-        self.charge_gas(self.price_list().on_create_actor(true))?;
+        let t = self.charge_gas(self.price_list().on_create_actor(true))?;
 
         if addr.is_bls_zero_address() {
             return Err(
@@ -413,8 +419,11 @@ where
             syscall_error!(IllegalArgument; "failed to serialize params: {}", e)
         })?;
 
+        // The cost of sending the message is measured independently.
+        t.stop();
+
         self.send_resolved::<K>(
-            account_actor::SYSTEM_ACTOR_ID,
+            system_actor::SYSTEM_ACTOR_ID,
             id,
             fvm_shared::METHOD_CONSTRUCTOR,
             Some(Block::new(DAG_CBOR, params)),
@@ -428,13 +437,13 @@ where
     where
         K: Kernel<CallManager = Self>,
     {
-        self.charge_gas(self.price_list().on_create_actor(true))?;
+        let t = self.charge_gas(self.price_list().on_create_actor(true))?;
 
         // Create the actor in the state tree, but don't call any constructor.
         let code_cid = self.builtin_actors().get_embryo_code();
 
         let state = ActorState::new_empty(*code_cid, Some(*addr));
-        self.machine.create_actor(addr, state)
+        t.record(self.machine.create_actor(addr, state))
     }
 
     /// Send without checking the call depth.
@@ -490,7 +499,7 @@ where
             .ok_or_else(|| syscall_error!(NotFound; "actor does not exist: {}", to))?;
 
         // Charge the method gas. Not sure why this comes second, but it does.
-        self.charge_gas(self.price_list().on_method_invocation(value, method))?;
+        let _ = self.charge_gas(self.price_list().on_method_invocation(value, method))?;
 
         // Transfer, if necessary.
         if !value.is_zero() {
