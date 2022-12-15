@@ -23,7 +23,7 @@ const INIT_ACTOR_NAME: &str = "init";
 const SYSTEM_ACTOR_NAME: &str = "system";
 const EMBRYO_ACTOR_NAME: &str = "embryo";
 const EAM_ACTOR_NAME: &str = "eam";
-const ETHACCOUNT_ACTOR_NAME: &str = "ethaccount";
+const ETHACCOUNT_ACTOR_NAME: &str = "evm";
 
 /// A mapping of builtin actor CIDs to their respective types.
 pub struct Manifest {
@@ -93,7 +93,6 @@ impl Manifest {
                 return Err(anyhow!("cannot find manifest root cid {}", root_cid));
             }
         };
-
         Manifest::new(vec)
     }
 
