@@ -16,12 +16,12 @@ pub(crate) mod error;
 
 mod actor;
 mod bind;
-mod context;
+pub mod context;
 mod crypto;
 mod debug;
 mod event;
 mod gas;
-mod ipld;
+pub mod ipld;
 mod network;
 mod rand;
 mod send;
