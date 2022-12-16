@@ -14,7 +14,7 @@ extern "Rust" {
 }
 /// An uninhabited type. We use this in `abort` to make sure there's no way to return without
 /// returning an error.
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub enum Never {}
 
 unsafe impl SyscallSafe for Never {}
