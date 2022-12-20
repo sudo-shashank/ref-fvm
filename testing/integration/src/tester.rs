@@ -147,7 +147,7 @@ where
             state: cid,
             sequence: 0,
             balance: init_balance,
-            address: Some(*address),
+            delegated_address: Some(*address),
         };
 
         state_tree
@@ -311,7 +311,7 @@ where
             state: cid,
             sequence: 0,
             balance: init_balance,
-            address: Some(pub_key_addr),
+            delegated_address: None,
         };
 
         state_tree

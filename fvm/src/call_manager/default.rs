@@ -18,6 +18,7 @@ use num_traits::Zero;
 use super::{Backtrace, CallManager, InvocationResult, NO_DATA_BLOCK_ID};
 use crate::call_manager::backtrace::Frame;
 use crate::call_manager::FinishRet;
+use crate::eam_actor::EAM_ACTOR_ID;
 use crate::engine::Engine;
 use crate::gas::{Gas, GasTimer, GasTracker};
 use crate::kernel::{Block, BlockRegistry, ExecutionError, Kernel, Result, SyscallError};
@@ -316,7 +317,7 @@ where
         &mut self,
         code_id: Cid,
         actor_id: ActorID,
-        predictable_address: Option<Address>,
+        delegated_address: Option<Address>,
     ) -> Result<()> {
         let start = GasTimer::start();
 
@@ -324,17 +325,17 @@ where
         let (actor, is_new) = match self.machine.state_tree().get_actor(actor_id)? {
             // Replace the embryo
             Some(mut act) if self.machine.builtin_actors().is_embryo_actor(&act.code) => {
-                if act.address.is_none() {
+                if act.delegated_address.is_none() {
                     // The FVM made a mistake somewhere.
                     return Err(ExecutionError::Fatal(anyhow!(
-                        "embryo {actor_id} doesn't have a predictable address"
+                        "embryo {actor_id} doesn't have a delegated address"
                     )));
                 }
-                if act.address != predictable_address {
+                if act.delegated_address != delegated_address {
                     // The Init actor made a mistake?
                     return Err(syscall_error!(
                         Forbidden,
-                        "embryo has a different predictable address"
+                        "embryo has a different delegated address"
                     )
                     .into());
                 }
@@ -346,7 +347,7 @@ where
                 return Err(syscall_error!(Forbidden; "Actor address already exists").into());
             }
             // Create a new actor.
-            None => (ActorState::new_empty(code_id, predictable_address), true),
+            None => (ActorState::new_empty(code_id, delegated_address), true),
         };
         let t = self.charge_gas(self.price_list().on_create_actor(is_new))?;
         self.state_tree_mut().set_actor(actor_id, actor)?;
@@ -395,7 +396,7 @@ where
         // Create the actor in the state tree.
         let id = {
             let code_cid = self.builtin_actors().get_account_code();
-            let state = ActorState::new_empty(*code_cid, Some(*addr));
+            let state = ActorState::new_empty(*code_cid, None);
             self.machine.create_actor(addr, state)?
         };
 
@@ -460,12 +461,13 @@ where
                 }
                 // Validate that there's an actor at the target ID (we don't care what is there,
                 // just that something is there).
-                Payload::Delegated(da)
-                    if self.state_tree().get_actor(da.namespace())?.is_some() =>
-                {
+                Payload::Delegated(da) if da.namespace() == EAM_ACTOR_ID => {
                     self.create_embryo_actor::<K>(&to)?
                 }
-                _ => return Err(syscall_error!(NotFound; "actor does not exist: {}", to).into()),
+                _ => return Err(
+                    syscall_error!(NotFound; "actor does not exist or cannot be created: {}", to)
+                        .into(),
+                ),
             },
         };
 

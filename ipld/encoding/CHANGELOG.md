@@ -2,6 +2,14 @@
 
 Changes to the FVM's shared encoding utilities.
 
+## 0.3.2 [2022-12-17]
+
+- IpldBlock::serialize_cbor returns Option<IpldBlock> instead of IpldBlock
+
+## 0.3.1 [2022-12-17]
+
+- Add new `IpldBlock` type that supports both `DAG_CBOR` and `IPLD_RAW` codecs
+
 ## 0.3.0 [2022-10-11]
 
 - Publicly use `serde` to expose it when developing actors.

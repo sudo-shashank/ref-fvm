@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0, MIT
 
 use std::cell::RefCell;
+use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 
 use anyhow::{anyhow, Context as _};
@@ -31,8 +32,13 @@ pub struct StateTree<S> {
     version: StateTreeVersion,
     info: Option<Cid>,
 
-    /// State cache
+    /// State snapshots.
     snaps: StateSnapshots,
+    /// Read-cache for the backing blockstore. This DOES NOT contain
+    /// mutations in progress (contained in the snapshots). Always check
+    /// snapshots first, then the read cache, then fall back to the backing
+    /// blockstore.
+    read_cache: RefCell<HashMap<ActorID, Option<ActorState>>>,
 }
 
 /// Collection of state snapshots
@@ -247,6 +253,7 @@ where
             version,
             info,
             snaps: StateSnapshots::new(),
+            read_cache: Default::default(),
         })
     }
 
@@ -294,6 +301,7 @@ where
                     version,
                     info,
                     snaps: StateSnapshots::new(),
+                    read_cache: Default::default(),
                 })
             }
         }
@@ -321,21 +329,22 @@ where
             StateCacheResult::Exists(state) => Some(state),
             StateCacheResult::Deleted => None,
             StateCacheResult::Uncached => {
-                // if state doesn't exist, find using hamt
-                let key = Address::new_id(id).to_bytes();
-                let act = self
-                    .hamt
-                    .get(&key)
-                    .with_context(|| format!("failed to lookup actor {}", id))
-                    .or_fatal()?
-                    .cloned();
-
-                // Update cache if state was found
-                if let Some(act_s) = &act {
-                    self.snaps.set_actor(id, act_s.clone())?;
+                let mut read_cache = self.read_cache.borrow_mut();
+                match read_cache.entry(id) {
+                    Entry::Occupied(e) => e.get().clone(),
+                    Entry::Vacant(e) => {
+                        e.insert({
+                            // It's not cached, so we look it up and cache it.
+                            let key = Address::new_id(id).to_bytes();
+                            self.hamt
+                                .get(&key)
+                                .with_context(|| format!("failed to lookup actor {}", id))
+                                .or_fatal()?
+                                .cloned()
+                        })
+                        .clone()
+                    }
                 }
-
-                act
             }
         })
     }
@@ -369,7 +378,7 @@ where
 
     /// Delete actor identified by the supplied ID. Returns no error if the actor doesn't exist.
     pub fn delete_actor(&mut self, id: ActorID) -> Result<()> {
-        // Remove value from cache
+        // Record that we've deleted the actor.
         self.snaps.delete_actor(id)?;
 
         Ok(())
@@ -449,6 +458,10 @@ where
             )));
         }
 
+        // Clear the read-cache as it only reflects the state of the current state-tree, not
+        // modifications contained in the snaps.
+        self.read_cache.borrow_mut().clear();
+
         for (&id, sto) in self.snaps.layers[0].actors.borrow().iter() {
             let addr = Address::new_id(id);
             match sto {
@@ -517,10 +530,10 @@ pub struct ActorState {
     pub sequence: u64,
     /// Tokens available to the actor.
     pub balance: TokenAmount,
-    /// The actor's "predictable" address, if assigned.
+    /// The actor's "delegated" address, if assigned.
     ///
     /// This field is set on actor creation and never modified.
-    pub address: Option<Address>,
+    pub delegated_address: Option<Address>,
 }
 
 impl ActorState {
@@ -537,18 +550,18 @@ impl ActorState {
             state,
             sequence,
             balance,
-            address,
+            delegated_address: address,
         }
     }
 
     /// Construct a new empty actor with the specified code.
-    pub fn new_empty(code: Cid, address: Option<Address>) -> Self {
+    pub fn new_empty(code: Cid, delegated_address: Option<Address>) -> Self {
         ActorState {
             code,
             state: *EMPTY_ARR_CID,
             sequence: 0,
             balance: TokenAmount::zero(),
-            address,
+            delegated_address,
         }
     }
 
@@ -767,7 +780,7 @@ mod tests {
                 state: state_cid,
                 balance: Default::default(),
                 sequence: 2,
-                address: None
+                delegated_address: None
             })
         );
 
