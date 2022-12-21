@@ -79,6 +79,7 @@ impl OnHashingParams {
             h if h == SupportedHashes::Blake2b512 as u64 => Some(SupportedHashes::Blake2b512),
             h if h == SupportedHashes::Keccak256 as u64 => Some(SupportedHashes::Keccak256),
             h if h == SupportedHashes::Ripemd160 as u64 => Some(SupportedHashes::Ripemd160),
+            h if h == SupportedHashes::Blake3_256 as u64 => Some(SupportedHashes::Blake3_256),
             _ => None,
         }
     }

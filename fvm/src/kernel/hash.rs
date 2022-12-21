@@ -1,7 +1,7 @@
 // Copyright 2021-2023 Protocol Labs
 // SPDX-License-Identifier: Apache-2.0, MIT
 use multihash::derive::Multihash;
-use multihash::{Blake2b256, Blake2b512, Keccak256, Ripemd160, Sha2_256};
+use multihash::{Blake2b256, Blake2b512, Keccak256, Ripemd160, Sha2_256, Blake3_256};
 
 #[derive(Clone, Copy, Debug, Eq, Multihash, PartialEq, Hash)]
 #[mh(alloc_size = 64)]
@@ -15,6 +15,8 @@ pub enum SupportedHashes {
     Blake2b256,
     #[mh(code = 0xb240, hasher = Blake2b512)]
     Blake2b512,
+    #[mh(code = 0xffff, hasher = Blake3_256)]
+    Blake3_256, // blake3 in 256 mode only
     #[mh(code = 0x1b, hasher = Keccak256)]
     Keccak256,
     #[mh(code = 0x1053, hasher = Ripemd160)]

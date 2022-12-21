@@ -8,4 +8,6 @@ pub enum SupportedHashes {
     Blake2b512 = 0xb240,
     Keccak256 = 0x1b,
     Ripemd160 = 0x1053,
+    //  testing
+    Blake3_256 = 0xffff
 }

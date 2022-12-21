@@ -115,6 +115,10 @@ lazy_static! {
                     flat: Gas::zero(),
                     scale: Gas::new(10)
                 },
+                Blake3_256 => ScalingCost {
+                    flat: Gas::zero(),
+                    scale: Gas::new(11) // TODO
+                },
                 Keccak256 => ScalingCost {
                     flat: Gas::zero(),
                     scale: Gas::new(33)

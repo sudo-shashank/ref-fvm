@@ -15,6 +15,7 @@ fn main() {
         SupportedHashes::Sha2_256,
         SupportedHashes::Blake2b256,
         SupportedHashes::Blake2b512,
+        SupportedHashes::Blake3_256,
         SupportedHashes::Keccak256,
         SupportedHashes::Ripemd160,
     ];
