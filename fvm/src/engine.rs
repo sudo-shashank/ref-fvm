@@ -432,8 +432,8 @@ impl Engine {
         let now = ProcessTime::now();
         let module = Module::from_binary(&self.0.engine, &raw_wasm)?;
         unsafe { set_compilation_time(now.elapsed().as_nanos())}
-
-        let machine_code_len = module.serialize()?.len();
+        let machine_code = module.serialize()?;
+        let machine_code_len = machine_code.len();
         unsafe { set_machine_code_size(machine_code_len) }
 
         Ok((ModuleRecord{
