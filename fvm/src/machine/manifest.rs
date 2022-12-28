@@ -10,9 +10,9 @@ use fvm_ipld_encoding::CborStore;
 const ACCOUNT_ACTOR_NAME: &str = "account";
 const INIT_ACTOR_NAME: &str = "init";
 const SYSTEM_ACTOR_NAME: &str = "system";
-const EMBRYO_ACTOR_NAME: &str = "embryo";
+const EMBRYO_ACTOR_NAME: &str = "placeholder";
 const EAM_ACTOR_NAME: &str = "eam";
-const ETHACCOUNT_ACTOR_NAME: &str = "evm";
+const ETHACCOUNT_ACTOR_NAME: &str = "etchaccount";
 
 /// A mapping of builtin actor CIDs to their respective types.
 pub struct Manifest {
