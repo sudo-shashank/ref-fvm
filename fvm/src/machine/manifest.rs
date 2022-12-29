@@ -12,7 +12,7 @@ const INIT_ACTOR_NAME: &str = "init";
 const SYSTEM_ACTOR_NAME: &str = "system";
 const PLACEHOLDER_ACTOR_NAME: &str = "placeholder";
 const EAM_ACTOR_NAME: &str = "eam";
-const ETHACCOUNT_ACTOR_NAME: &str = "etchaccount";
+const ETHACCOUNT_ACTOR_NAME: &str = "evm";
 
 /// A mapping of builtin actor CIDs to their respective types.
 pub struct Manifest {
