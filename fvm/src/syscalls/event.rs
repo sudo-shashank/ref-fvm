@@ -12,6 +12,14 @@ extern "Rust" {
     fn set_syscall_probe(probe: &'static str) -> ();
 }
 
+/// Emits an actor event. It takes an DAG-CBOR encoded ActorEvent that has been
+/// written to Wasm memory, as an offset and length tuple.
+///
+/// The FVM validates the structural, syntatic, and semantic correctness of the
+/// supplied event, and errors with `IllegalArgument` if the payload was invalid.
+///
+/// Calling this syscall may immediately halt execution with an out of gas error,
+/// if such condition arises.
 pub fn emit_event(
     context: Context<'_, impl Kernel>,
     event_off: u32, // ActorEvent
