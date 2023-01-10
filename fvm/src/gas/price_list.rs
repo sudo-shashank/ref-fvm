@@ -173,7 +173,8 @@ lazy_static! {
         .cloned()
         .collect(),
 
-        verify_consensus_fault: Gas::new(495422),
+        verify_consensus_fault: Gas::new(516422),
+
         verify_replica_update: Gas::new(36316136),
         verify_post_lookup: [
             (
@@ -203,8 +204,8 @@ lazy_static! {
         .collect(),
 
         // TODO(#1277): Implement this first before benchmarking.
-        // TODO(#1264): do look at lookback here, but don't bother with the amount of entropy (see the line above).
-        get_randomness: Gas::zero(),
+        // TODO(#1384): Reprice
+        get_randomness_seed: Gas::new(21000),
 
         block_allocate: ScalingCost {
             flat: Gas::zero(),
@@ -222,10 +223,8 @@ lazy_static! {
         },
 
         block_open: ScalingCost {
-            // This was benchmarked (#1264) at 187440 gas/read, but we've deducted the existing
-            // extern cost here. Once we get accurate charges for all "externs", we can get rid of
-            // the separate extern cost all together.
-            flat: Gas::new(166440),
+            // This was benchmarked (#1264) at 187440 gas/read.
+            flat: Gas::new(187440),
             // It costs takes about 0.562 ns/byte (5.6gas) to "read" from a client. However, that
             // includes one allocation and memory copy, which we charge for separately.
             //
@@ -235,16 +234,14 @@ lazy_static! {
             scale: Gas::zero(),
         },
 
-        block_storage: ScalingCost {
-            flat: Gas::new(353640),
+        block_persist_storage: ScalingCost {
+            flat: Gas::new(130000), // ~ Assume about 100 bytes of metadata per block.
             scale: Gas::new(1300),
         },
 
-        syscall_cost: Gas::new(14000),
-        extern_cost: Gas::new(21000),
+        block_persist_compute: Gas::new(172000),
 
-        // TODO(#1264) (Consider subtracting from the block storage flat fee).
-        block_flush: ScalingCost::zero(),
+        syscall_cost: Gas::new(14000),
 
         // TODO(#1279)
         state_read_base: Zero::zero(),
@@ -417,8 +414,9 @@ pub struct PriceList {
     pub(crate) verify_consensus_fault: Gas,
     pub(crate) verify_replica_update: Gas,
 
-    /// Gas cost for fetching randomness.
-    pub(crate) get_randomness: Gas,
+    /// Gas cost for fetching a randomness seed for an epoch. We charge separately for extracting
+    /// randomness (hashing).
+    pub(crate) get_randomness_seed: Gas,
 
     /// Gas cost per byte copied.
     pub(crate) block_memcpy: ScalingCost,
@@ -435,16 +433,14 @@ pub struct PriceList {
     /// Gas cost for opening a block.
     pub(crate) block_open: ScalingCost,
 
-    /// Gas cost for storing a block.
-    pub(crate) block_storage: ScalingCost,
+    /// Gas cost for persisting a block over time.
+    pub(crate) block_persist_storage: ScalingCost,
 
-    /// Gas cost to cover the expected cost of flushing.
-    pub(crate) block_flush: ScalingCost,
+    /// Gas cost to cover the cost of flushing a block.
+    pub(crate) block_persist_compute: Gas,
 
     /// General gas cost for performing a syscall, accounting for the overhead thereof.
     pub(crate) syscall_cost: Gas,
-    /// General gas cost for calling an extern, accounting for the overhead thereof.
-    pub(crate) extern_cost: Gas,
 
     /// Rules for execution gas.
     pub(crate) wasm_rules: WasmGasPrices,
@@ -684,12 +680,12 @@ impl PriceList {
         GasCharge::new(
             "OnVerifyConsensusFault",
             Zero::zero(),
-            self.extern_cost + self.verify_consensus_fault,
+            self.verify_consensus_fault,
         )
     }
 
     /// Returns the cost of the gas required for getting randomness from the client, based on the
-    /// numebr of bytes of entropy.
+    /// number of bytes of entropy.
     #[inline]
     pub fn on_get_randomness(&self, entropy_size: usize) -> GasCharge {
         const RAND_INITIAL_HASH: u64 =
@@ -703,21 +699,16 @@ impl PriceList {
         GasCharge::new(
             "OnGetRandomness",
             Zero::zero(),
-            self.extern_cost
-                + self.get_randomness // TODO(m2.2): consider different values for
-                + self
-                .hashing_cost[&SupportedHashes::Blake2b256].apply((entropy_size as u64).saturating_add(RAND_INITIAL_HASH)),
+            self.get_randomness_seed
+                + self.hashing_cost[&SupportedHashes::Blake2b256]
+                    .apply((entropy_size as u64).saturating_add(RAND_INITIAL_HASH)),
         )
     }
 
     /// Returns the base gas required for loading an object, independent of the object's size.
     #[inline]
     pub fn on_block_open_base(&self) -> GasCharge {
-        GasCharge::new(
-            "OnBlockOpenBase",
-            Zero::zero(),
-            self.extern_cost + self.block_open.flat,
-        )
+        GasCharge::new("OnBlockOpenBase", Zero::zero(), self.block_open.flat)
     }
 
     /// Returns the gas required for loading an object based on the size of the object.
@@ -753,20 +744,23 @@ impl PriceList {
     /// Returns the gas required for committing an object to the state blockstore.
     #[inline]
     pub fn on_block_link(&self, hash_code: SupportedHashes, data_size: usize) -> GasCharge {
-        // First we compute the expected cost of allocating & copying the block. We'll end up
-        // charging it twice.
-        let memcpy = self.block_memcpy.apply(data_size) + self.block_allocate.apply(data_size);
-
-        // Then the cost of actually hashing the new block.
+        // The initial compute costs include a single memcpy + alloc and the cost of actually
+        // hashing the block to compute the CID.
+        let memcpy = self.block_memcpy.apply(data_size);
+        let alloc = self.block_allocate.apply(data_size);
         let hashing = self.hashing_cost[&hash_code].apply(data_size);
 
-        // Then the expected cost of flushing (client side).
-        let flushing = self.block_flush.apply(data_size);
+        let initial_compute = memcpy + alloc + hashing;
 
-        // Then the cost of actually storing the block.
-        let storage = self.block_storage.apply(data_size);
+        // We also have to charge for storage...
+        let storage = self.block_persist_storage.apply(data_size);
 
-        GasCharge::new("OnBlockLink", memcpy + hashing, storage + memcpy + flushing)
+        // And deferred compute (the cost of flushing). Technically, there are a few memcpys and
+        // allocations here, but the storage cost itself is _much_ greater than all these small
+        // per-byte charges combined, so we ignore them for simplicity.
+        let deferred_compute = self.block_persist_compute;
+
+        GasCharge::new("OnBlockLink", initial_compute, deferred_compute + storage)
     }
 
     /// Returns the gas required for storing an object.
