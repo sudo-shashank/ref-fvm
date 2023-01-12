@@ -1876,7 +1876,7 @@ name = "fil_address_actor"
 version = "0.1.0"
 dependencies = [
  "fvm_ipld_encoding 0.3.2",
- "fvm_sdk 3.0.0-alpha.20",
+ "fvm_sdk 3.0.0-alpha.21",
  "fvm_shared 3.0.0-alpha.15",
  "serde",
  "substrate-wasm-builder",
@@ -1914,7 +1914,7 @@ name = "fil_events_actor"
 version = "0.1.0"
 dependencies = [
  "fvm_ipld_encoding 0.3.2",
- "fvm_sdk 3.0.0-alpha.20",
+ "fvm_sdk 3.0.0-alpha.21",
  "fvm_shared 3.0.0-alpha.15",
  "serde",
  "serde_tuple",
@@ -1926,7 +1926,7 @@ name = "fil_exit_data_actor"
 version = "0.1.0"
 dependencies = [
  "fvm_ipld_encoding 0.3.2",
- "fvm_sdk 3.0.0-alpha.20",
+ "fvm_sdk 3.0.0-alpha.21",
  "fvm_shared 3.0.0-alpha.15",
  "substrate-wasm-builder",
 ]
@@ -1938,7 +1938,7 @@ dependencies = [
  "anyhow",
  "cid 0.8.6",
  "fvm_ipld_encoding 0.3.2",
- "fvm_sdk 3.0.0-alpha.20",
+ "fvm_sdk 3.0.0-alpha.21",
  "fvm_shared 3.0.0-alpha.15",
  "num-derive",
  "num-traits",
@@ -1951,7 +1951,7 @@ name = "fil_gaslimit_actor"
 version = "0.1.0"
 dependencies = [
  "fvm_ipld_encoding 0.3.2",
- "fvm_sdk 3.0.0-alpha.20",
+ "fvm_sdk 3.0.0-alpha.21",
  "fvm_shared 3.0.0-alpha.15",
  "log",
  "serde",
@@ -1963,7 +1963,7 @@ dependencies = [
 name = "fil_hello_world_actor"
 version = "0.1.0"
 dependencies = [
- "fvm_sdk 3.0.0-alpha.20",
+ "fvm_sdk 3.0.0-alpha.21",
  "fvm_shared 3.0.0-alpha.15",
  "substrate-wasm-builder",
 ]
@@ -1976,7 +1976,7 @@ dependencies = [
  "cid 0.8.6",
  "fvm_ipld_blockstore 0.1.1",
  "fvm_ipld_encoding 0.3.2",
- "fvm_sdk 3.0.0-alpha.20",
+ "fvm_sdk 3.0.0-alpha.21",
  "fvm_shared 3.0.0-alpha.15",
  "serde",
  "serde_tuple",
@@ -1988,7 +1988,7 @@ name = "fil_ipld_actor"
 version = "0.1.0"
 dependencies = [
  "fvm_ipld_encoding 0.3.2",
- "fvm_sdk 3.0.0-alpha.20",
+ "fvm_sdk 3.0.0-alpha.21",
  "fvm_shared 3.0.0-alpha.15",
  "minicov",
  "substrate-wasm-builder",
@@ -1998,7 +1998,7 @@ dependencies = [
 name = "fil_malformed_syscall_actor"
 version = "0.1.0"
 dependencies = [
- "fvm_sdk 3.0.0-alpha.20",
+ "fvm_sdk 3.0.0-alpha.21",
  "fvm_shared 3.0.0-alpha.15",
  "substrate-wasm-builder",
 ]
@@ -2009,7 +2009,7 @@ version = "0.1.0"
 dependencies = [
  "cid 0.8.6",
  "fvm_ipld_encoding 0.3.2",
- "fvm_sdk 3.0.0-alpha.20",
+ "fvm_sdk 3.0.0-alpha.21",
  "fvm_shared 3.0.0-alpha.15",
  "substrate-wasm-builder",
 ]
@@ -2018,7 +2018,7 @@ dependencies = [
 name = "fil_stack_overflow_actor"
 version = "0.1.0"
 dependencies = [
- "fvm_sdk 3.0.0-alpha.20",
+ "fvm_sdk 3.0.0-alpha.21",
  "fvm_shared 3.0.0-alpha.15",
  "substrate-wasm-builder",
 ]
@@ -2029,7 +2029,7 @@ version = "0.1.0"
 dependencies = [
  "fil_actors_runtime",
  "fvm_ipld_encoding 0.3.2",
- "fvm_sdk 3.0.0-alpha.20",
+ "fvm_sdk 3.0.0-alpha.21",
  "fvm_shared 3.0.0-alpha.15",
  "minicov",
  "multihash 0.16.3",
@@ -2865,7 +2865,7 @@ dependencies = [
 
 [[package]]
 name = "fvm_sdk"
-version = "3.0.0-alpha.20"
+version = "3.0.0-alpha.21"
 dependencies = [
  "cid 0.8.6",
  "fvm_ipld_encoding 0.3.2",
