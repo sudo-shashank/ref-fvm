@@ -21,6 +21,7 @@ pub mod message;
 pub mod piece;
 pub mod randomness;
 pub mod receipt;
+pub mod response;
 pub mod reward;
 pub mod sector;
 pub mod smooth;
