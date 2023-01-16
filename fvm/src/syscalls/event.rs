@@ -6,6 +6,13 @@ use super::Context;
 use crate::kernel::Result;
 use crate::Kernel;
 
+use fuzzing_tracker::instrument;
+#[cfg(feature="tracing")]
+// Injected during build
+#[no_mangle]
+extern "Rust" {
+    fn set_custom_probe(line: u64) -> ();
+}
 // Injected during build
 #[no_mangle]
 extern "Rust" {
@@ -20,6 +27,7 @@ extern "Rust" {
 ///
 /// Calling this syscall may immediately halt execution with an out of gas error,
 /// if such condition arises.
+#[instrument()]
 pub fn emit_event(
     context: Context<'_, impl Kernel>,
     event_off: u32, // ActorEvent

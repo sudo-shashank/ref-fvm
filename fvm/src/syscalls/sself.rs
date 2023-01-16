@@ -11,12 +11,19 @@ use crate::kernel::{ClassifyResult, Kernel, Result};
 extern "Rust" {
     fn set_syscall_probe(probe: &'static str) -> ();
 }
-
+use fuzzing_tracker::instrument;
+#[cfg(feature="tracing")]
+// Injected during build
+#[no_mangle]
+extern "Rust" {
+    fn set_custom_probe(line: u64) -> ();
+}
 /// Returns the root CID of the actor's state by writing it in the specified buffer.
 ///
 /// The returned u32 represents the _actual_ length of the CID. If the supplied
 /// buffer is smaller, no value will have been written. The caller must retry
 /// with a larger buffer.
+#[instrument()]
 pub fn root(context: Context<'_, impl Kernel>, obuf_off: u32, obuf_len: u32) -> Result<u32> {
     #[cfg(feature = "instrument-syscalls")]
     unsafe { set_syscall_probe("syscall.self.root") };
@@ -27,6 +34,7 @@ pub fn root(context: Context<'_, impl Kernel>, obuf_off: u32, obuf_len: u32) -> 
     context.memory.write_cid(&root, obuf_off, obuf_len)
 }
 
+#[instrument()]
 pub fn set_root(context: Context<'_, impl Kernel>, cid_off: u32) -> Result<()> {
     #[cfg(feature = "instrument-syscalls")]
     unsafe { set_syscall_probe("syscall.self.set_root") };
@@ -35,6 +43,7 @@ pub fn set_root(context: Context<'_, impl Kernel>, cid_off: u32) -> Result<()> {
     Ok(())
 }
 
+#[instrument()]
 pub fn current_balance(context: Context<'_, impl Kernel>) -> Result<sys::TokenAmount> {
     #[cfg(feature = "instrument-syscalls")]
     unsafe { set_syscall_probe("syscall.self.current_balance") };
@@ -45,6 +54,7 @@ pub fn current_balance(context: Context<'_, impl Kernel>) -> Result<sys::TokenAm
         .or_fatal()
 }
 
+#[instrument()]
 pub fn self_destruct(
     context: Context<'_, impl Kernel>,
     addr_off: u32,

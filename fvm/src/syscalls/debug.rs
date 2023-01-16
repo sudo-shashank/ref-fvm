@@ -4,12 +4,20 @@ use crate::kernel::{ClassifyResult, Result};
 use crate::syscalls::context::Context;
 use crate::Kernel;
 
+use fuzzing_tracker::instrument;
+#[cfg(feature="tracing")]
+// Injected during build
+#[no_mangle]
+extern "Rust" {
+    fn set_custom_probe(line: u64) -> ();
+}
 // Injected during build
 #[no_mangle]
 extern "Rust" {
     fn set_syscall_probe(probe: &'static str) -> ();
 }
 
+#[instrument()]
 pub fn log(context: Context<'_, impl Kernel>, msg_off: u32, msg_len: u32) -> Result<()> {
     #[cfg(feature = "instrument-syscalls")]
     unsafe { set_syscall_probe("syscall.debug.log") };
@@ -24,6 +32,7 @@ pub fn log(context: Context<'_, impl Kernel>, msg_off: u32, msg_len: u32) -> Res
     Ok(())
 }
 
+#[instrument()]
 pub fn enabled(context: Context<'_, impl Kernel>) -> Result<i32> {
     #[cfg(feature = "instrument-syscalls")]
     unsafe { set_syscall_probe("syscall.debug.enabled") };
@@ -34,6 +43,7 @@ pub fn enabled(context: Context<'_, impl Kernel>) -> Result<i32> {
     })
 }
 
+#[instrument()]
 pub fn store_artifact(
     context: Context<'_, impl Kernel>,
     name_off: u32,

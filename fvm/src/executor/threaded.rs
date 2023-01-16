@@ -5,6 +5,13 @@ use cid::Cid;
 use fvm_shared::message::Message;
 use lazy_static::lazy_static;
 
+use fuzzing_tracker::instrument;
+#[cfg(feature="tracing")]
+// Injected during build
+#[no_mangle]
+extern "Rust" {
+    fn set_custom_probe(line: u64) -> ();
+}
 use super::{ApplyKind, ApplyRet, Executor};
 
 lazy_static! {
@@ -32,6 +39,7 @@ where
     type Kernel = E::Kernel;
 
     /// This is the entrypoint to execute a message.
+    #[instrument()]
     fn execute_message(
         &mut self,
         msg: Message,

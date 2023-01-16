@@ -6,6 +6,13 @@ use super::Context;
 use crate::gas::Gas;
 use crate::kernel::{ClassifyResult, Result};
 use crate::Kernel;
+use fuzzing_tracker::instrument;
+#[cfg(feature="tracing")]
+// Injected during build
+#[no_mangle]
+extern "Rust" {
+    fn set_custom_probe(line: u64) -> ();
+}
 
 // Injected during build
 #[no_mangle]
@@ -13,6 +20,7 @@ extern "Rust" {
     fn set_syscall_probe(probe: &'static str) -> ();
 }
 
+#[instrument()]
 pub fn charge_gas(
     context: Context<'_, impl Kernel>,
     name_off: u32,
@@ -30,6 +38,7 @@ pub fn charge_gas(
         .map(|_| ())
 }
 
+#[instrument()]
 pub fn available(context: Context<'_, impl Kernel>) -> Result<u64> {
     Ok(context.kernel.gas_available().round_down() as u64)
 }

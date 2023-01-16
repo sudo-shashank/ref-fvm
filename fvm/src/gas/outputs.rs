@@ -5,6 +5,16 @@ use std::convert::TryFrom;
 use fvm_shared::bigint::BigInt;
 use fvm_shared::econ::TokenAmount;
 
+
+use fuzzing_tracker::instrument;
+#[cfg(feature="tracing")]
+// Injected during build
+#[no_mangle]
+extern "Rust" {
+    fn set_custom_probe(line: u64) -> ();
+}
+
+
 #[derive(Clone, Default)]
 pub(crate) struct GasOutputs {
     pub base_fee_burn: TokenAmount,
@@ -19,6 +29,7 @@ pub(crate) struct GasOutputs {
 }
 
 impl GasOutputs {
+    #[instrument()]
     pub fn compute(
         // In whole gas units.
         gas_used: i64,
@@ -61,6 +72,7 @@ impl GasOutputs {
     }
 }
 
+#[instrument()]
 fn compute_gas_overestimation_burn(gas_used: i64, gas_limit: i64) -> (i64, i64) {
     const GAS_OVERUSE_NUM: i64 = 11;
     const GAS_OVERUSE_DENOM: i64 = 10;

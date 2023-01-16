@@ -8,6 +8,14 @@ use fvm_shared::error::ErrorNumber;
 /// Execution result.
 pub type Result<T> = std::result::Result<T, ExecutionError>;
 
+use fuzzing_tracker::instrument;
+#[cfg(feature="tracing")]
+// Injected during build
+#[no_mangle]
+extern "Rust" {
+    fn set_custom_probe(line: u64) -> ();
+}
+
 /// Convenience macro for generating Actor Errors
 #[macro_export]
 macro_rules! syscall_error {
@@ -47,6 +55,7 @@ impl ExecutionError {
     /// - A message that results in a fatal error cannot be included in a block (no receipt).
     /// - A block including a message that results in a fatal error cannot be accepted (messages
     ///   cannot be skipped).
+    #[instrument]
     pub fn is_fatal(&self) -> bool {
         use ExecutionError::*;
         match self {
@@ -57,6 +66,7 @@ impl ExecutionError {
 
     /// Returns true if an actor can catch the error. All errors except fatal and out of gas errors
     /// are recoverable.
+    #[instrument]
     pub fn is_recoverable(&self) -> bool {
         use ExecutionError::*;
         match self {

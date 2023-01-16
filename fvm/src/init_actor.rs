@@ -29,6 +29,14 @@ use crate::state_tree::{ActorState, StateTree};
 pub const INIT_ACTOR_ID: ActorID = 1;
 
 use crate::kernel::{ClassifyResult, Result};
+use fuzzing_tracker::instrument;
+#[cfg(feature="tracing")]
+// Injected during build
+#[no_mangle]
+extern "Rust" {
+    fn set_custom_probe(line: u64) -> ();
+}
+
 
 #[derive(Serialize_tuple, Deserialize_tuple, Debug)]
 pub struct State {
@@ -43,6 +51,7 @@ impl State {
     // ideally we would just #[cfg(test)] this, but it is used by non test-gated code in
     // integration/tester.
     #[allow(unused)]
+    #[instrument()]
     pub fn new_test<B: Blockstore>(store: &B) -> Self {
         #[cfg(feature = "m2-native")]
         use cid::multihash::Code::Blake2b256;

@@ -24,6 +24,15 @@ use super::GasCharge;
 use crate::gas::Gas;
 use crate::kernel::SupportedHashes;
 
+
+use fuzzing_tracker::instrument;
+#[cfg(feature="tracing")]
+// Injected during build
+#[no_mangle]
+extern "Rust" {
+    fn set_custom_probe(line: u64) -> ();
+}
+
 // Each element reserves a `usize` in the table, so we charge 8 bytes per pointer.
 // https://docs.rs/wasmtime/2.0.2/wasmtime/struct.InstanceLimits.html#structfield.table_elements
 const TABLE_ELEMENT_SIZE: u32 = 8;
@@ -296,7 +305,8 @@ pub(crate) struct ScalingCost {
 }
 
 impl ScalingCost {
-    /// Computes the scaled cost for the given value, or saturates.
+    /// Computes the scaled cost for the given value, or saturates.    
+    #[instrument()]
     pub fn apply<V>(&self, value: V) -> Gas
     where
         Gas: Mul<V, Output = Gas>,
@@ -305,6 +315,7 @@ impl ScalingCost {
     }
 
     /// Create a new "fixed" cost. Useful when some network versions scale the cost and others don't.
+    #[instrument()]
     pub fn fixed(g: Gas) -> Self {
         Self {
             flat: g,
@@ -313,6 +324,7 @@ impl ScalingCost {
     }
 
     /// Create a "zero" scaling cost.
+    #[instrument()]
     pub fn zero() -> Self {
         Self {
             flat: Gas::zero(),
@@ -331,6 +343,7 @@ pub(crate) struct Step {
 }
 
 impl StepCost {
+    #[instrument()]
     pub(crate) fn lookup(&self, x: i64) -> Gas {
         let mut i: i64 = 0;
         while i < self.0.len() as i64 {
@@ -923,6 +936,7 @@ pub fn price_list_by_network_version(network_version: NetworkVersion) -> &'stati
 }
 
 impl Rules for WasmGasPrices {
+    #[instrument()]
     fn instruction_cost(&self, instruction: &Operator) -> anyhow::Result<InstructionCost> {
         use InstructionCost::*;
 
@@ -1221,10 +1235,12 @@ impl Rules for WasmGasPrices {
         }
     }
 
+    #[instrument()]
     fn gas_charge_cost(&self) -> u64 {
         0
     }
 
+    #[instrument()]
     fn linear_calc_cost(&self) -> u64 {
         0
     }

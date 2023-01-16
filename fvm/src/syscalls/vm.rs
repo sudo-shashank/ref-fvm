@@ -12,6 +12,14 @@ use crate::kernel::Kernel;
 extern "Rust" {
     fn set_syscall_probe(probe: &'static str) -> ();
 }
+use fuzzing_tracker::instrument;
+#[cfg(feature="tracing")]
+// Injected during build
+#[no_mangle]
+extern "Rust" {
+    fn set_custom_probe(line: u64) -> ();
+}
+
 /// An uninhabited type. We use this in `abort` to make sure there's no way to return without
 /// returning an error.
 #[derive(Debug, Copy, Clone)]
@@ -24,6 +32,7 @@ unsafe impl SyscallSafe for Never {}
 const MAX_MESSAGE_LEN: usize = 1024;
 
 // NOTE: this won't clobber the last syscall error because it directly returns a "trap".
+#[instrument()]
 pub fn exit(
     context: Context<'_, impl Kernel>,
     code: u32,
@@ -66,6 +75,7 @@ pub fn exit(
     Err(Abort::Exit(code, message, blk))
 }
 
+#[instrument()]
 pub fn message_context(context: Context<'_, impl Kernel>) -> crate::kernel::Result<MessageContext> {
     #[cfg(feature = "instrument-syscalls")]
     unsafe { set_syscall_probe("syscall.vm.message_context") };

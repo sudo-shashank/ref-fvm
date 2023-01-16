@@ -11,7 +11,15 @@ use crate::Kernel;
 extern "Rust" {
     fn set_syscall_probe(probe: &'static str) -> ();
 }
+use fuzzing_tracker::instrument;
+#[cfg(feature="tracing")]
+// Injected during build
+#[no_mangle]
+extern "Rust" {
+    fn set_custom_probe(line: u64) -> ();
+}
 
+#[instrument()]
 pub fn block_open(context: Context<'_, impl Kernel>, cid: u32) -> Result<sys::out::ipld::IpldOpen> {
     #[cfg(feature = "instrument-syscalls")]
     unsafe { set_syscall_probe("syscall.ipld.block_open") };
@@ -24,6 +32,7 @@ pub fn block_open(context: Context<'_, impl Kernel>, cid: u32) -> Result<sys::ou
     })
 }
 
+#[instrument()]
 pub fn block_create(
     context: Context<'_, impl Kernel>,
     codec: u64,
@@ -36,6 +45,7 @@ pub fn block_create(
     context.kernel.block_create(codec, data)
 }
 
+#[instrument()]
 pub fn block_link(
     context: Context<'_, impl Kernel>,
     id: u32,
@@ -56,6 +66,7 @@ pub fn block_link(
     context.memory.write_cid(&cid, cid_off, cid_len)
 }
 
+#[instrument()]
 pub fn block_read(
     context: Context<'_, impl Kernel>,
     id: u32,
@@ -69,6 +80,7 @@ pub fn block_read(
     context.kernel.block_read(id, offset, data)
 }
 
+#[instrument()]
 pub fn block_stat(context: Context<'_, impl Kernel>, id: u32) -> Result<sys::out::ipld::IpldStat> {
     #[cfg(feature = "instrument-syscalls")]
     unsafe { set_syscall_probe("syscall.ipld.block_stat") };

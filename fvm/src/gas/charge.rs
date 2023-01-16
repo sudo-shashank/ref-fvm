@@ -7,6 +7,14 @@ use std::borrow::Cow;
 use super::timer::GasDuration;
 use super::Gas;
 
+use fuzzing_tracker::instrument;
+#[cfg(feature="tracing")]
+// Injected during build
+#[no_mangle]
+extern "Rust" {
+    fn set_custom_probe(line: u64) -> ();
+}
+
 /// Single gas charge in the VM. Contains information about what gas was for, as well
 /// as the amount of gas needed for computation and storage respectively.
 #[derive(Clone, Debug)]
@@ -30,6 +38,7 @@ pub struct GasCharge {
 }
 
 impl GasCharge {
+    #[instrument()]
     pub fn new(name: impl Into<Cow<'static, str>>, compute_gas: Gas, other_gas: Gas) -> Self {
         let name = name.into();
         Self {
@@ -42,6 +51,7 @@ impl GasCharge {
 
     /// Calculates total gas charge (in milligas) by summing compute and
     /// storage gas associated with this charge.
+    #[instrument()]
     pub fn total(&self) -> Gas {
         self.compute_gas + self.other_gas
     }

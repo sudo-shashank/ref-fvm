@@ -45,6 +45,7 @@ quickcheck = { version = "1", optional = true }
 cpu-time = "1.0.0"
 once_cell = "1.5"
 minstant = "0.1.2"
+fuzzing-tracker = { path = "../../../fuzzing_fvm/crates/tracker" }
 
 [dev-dependencies]
 pretty_assertions = "1.2.1"
@@ -70,3 +71,4 @@ testing = []
 arb = ["arbitrary", "quickcheck"]
 m2-native = []
 instrument-syscalls = []
+tracing = [ ]

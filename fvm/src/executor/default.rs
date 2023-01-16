@@ -24,6 +24,14 @@ use crate::kernel::{Block, ClassifyResult, Context as _, ExecutionError, Kernel}
 use crate::machine::{Machine, BURNT_FUNDS_ACTOR_ID, REWARD_ACTOR_ID};
 use crate::trace::ExecutionTrace;
 
+use fuzzing_tracker::instrument;
+#[cfg(feature="tracing")]
+// Injected during build
+#[no_mangle]
+extern "Rust" {
+    fn set_custom_probe(line: u64) -> ();
+}
+
 /// The default [`Executor`].
 ///
 /// # Warning
@@ -58,6 +66,7 @@ where
     type Kernel = K;
 
     /// This is the entrypoint to execute a message.
+    #[instrument()]
     fn execute_message(
         &mut self,
         msg: Message,
@@ -281,7 +290,8 @@ impl<K> DefaultExecutor<K>
 where
     K: Kernel,
 {
-    /// Create a new [`DefaultExecutor`] for executing messages on the [`Machine`].
+    /// Create a new [`DefaultExecutor`] for executing messages on the [`Machine`].    
+    #[instrument()]
     pub fn new(
         engine_pool: EnginePool,
         machine: <K::CallManager as CallManager>::Machine,
@@ -306,6 +316,7 @@ where
 
     /// Consume consumes the executor and returns the Machine. If the Machine had
     /// been poisoned during execution, the Option will be None.
+    #[instrument()]
     pub fn into_machine(self) -> Option<<K::CallManager as CallManager>::Machine> {
         self.machine
     }
@@ -315,6 +326,7 @@ where
     //  2. Short-circuit: Return ApplyRet).
     //  3. Fail: Return an error).
     //  We could use custom types, but that would be even more annoying.
+    #[instrument()]
     fn preflight_message(
         &mut self,
         msg: &Message,
@@ -448,6 +460,7 @@ where
         Ok(Ok((sender_id, gas_cost, inclusion_cost)))
     }
 
+    #[instrument()]
     #[allow(clippy::too_many_arguments)]
     fn finish_message(
         &mut self,
@@ -521,6 +534,7 @@ where
         })
     }
 
+    #[instrument()]
     fn map_machine<F, T>(&mut self, f: F) -> T
     where
         F: FnOnce(

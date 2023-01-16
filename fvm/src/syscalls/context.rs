@@ -13,7 +13,13 @@ use serde::de::DeserializeOwned;
 
 use crate::kernel::{ClassifyResult, Context as _, Result};
 use crate::syscall_error;
-
+use fuzzing_tracker::instrument;
+#[cfg(feature="tracing")]
+// Injected during build
+#[no_mangle]
+extern "Rust" {
+    fn set_custom_probe(line: u64) -> ();
+}
 pub struct Context<'a, K> {
     pub kernel: &'a mut K,
     pub memory: &'a mut Memory,
@@ -25,18 +31,21 @@ pub struct Memory([u8]);
 impl Deref for Memory {
     type Target = [u8];
 
+    #[instrument()]
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
 impl DerefMut for Memory {
+    #[instrument()]
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
 }
 
 impl Memory {
+    #[instrument()]
     #[allow(clippy::needless_lifetimes)]
     pub fn new<'a>(m: &'a mut [u8]) -> &'a mut Memory {
         // We explicitly specify the lifetimes here to ensure that the cast doesn't inadvertently
@@ -44,6 +53,7 @@ impl Memory {
         unsafe { &mut *(m as *mut [u8] as *mut Memory) }
     }
 
+    #[instrument()]
     pub fn check_bounds(&self, offset: u32, len: u32) -> Result<()> {
         if (offset as u64) + (len as u64) <= (self.0.len() as u64) {
             Ok(())
@@ -55,12 +65,14 @@ impl Memory {
         }
     }
 
+    #[instrument()]
     pub fn try_slice(&self, offset: u32, len: u32) -> Result<&[u8]> {
         self.get(offset as usize..)
             .and_then(|data| data.get(..len as usize))
             .ok_or_else(|| format!("buffer {} (length {}) out of bounds", offset, len))
             .or_error(ErrorNumber::IllegalArgument)
     }
+    #[instrument()]
     pub fn try_slice_mut(&mut self, offset: u32, len: u32) -> Result<&mut [u8]> {
         self.get_mut(offset as usize..)
             .and_then(|data| data.get_mut(..len as usize))
@@ -68,6 +80,7 @@ impl Memory {
             .or_error(ErrorNumber::IllegalArgument)
     }
 
+    #[instrument()]
     pub fn read_cid(&self, offset: u32) -> Result<Cid> {
         // NOTE: Be very careful when changing this code.
         //
@@ -87,6 +100,7 @@ impl Memory {
         .context("failed to parse cid")
     }
 
+    #[instrument()]
     pub fn write_cid(&mut self, k: &Cid, offset: u32, len: u32) -> Result<u32> {
         let out = self.try_slice_mut(offset, len)?;
 
@@ -102,11 +116,13 @@ impl Memory {
         Ok(len as u32)
     }
 
+    #[instrument()]
     pub fn read_address(&self, offset: u32, len: u32) -> Result<Address> {
         let bytes = self.try_slice(offset, len)?;
         Address::from_bytes(bytes).or_error(ErrorNumber::IllegalArgument)
     }
 
+    #[instrument()]
     pub fn read_cbor<T: DeserializeOwned>(&self, offset: u32, len: u32) -> Result<T> {
         let bytes = self.try_slice(offset, len)?;
         // Catch panics when decoding cbor from actors, _just_ in case.

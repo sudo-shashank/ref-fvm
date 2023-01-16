@@ -2356,6 +2356,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "fuzzing-tracker"
+version = "0.0.1"
+dependencies = [
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "fvm"
 version = "3.0.0-alpha.18"
 dependencies = [
@@ -2369,6 +2377,7 @@ dependencies = [
  "derive_builder",
  "derive_more",
  "filecoin-proofs-api",
+ "fuzzing-tracker",
  "fvm",
  "fvm-wasm-instrument",
  "fvm_ipld_amt 0.5.0",

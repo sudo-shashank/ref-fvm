@@ -15,9 +15,17 @@ use crate::Kernel;
 extern "Rust" {
     fn set_syscall_probe(probe: &'static str) -> ();
 }
+use fuzzing_tracker::instrument;
+#[cfg(feature="tracing")]
+// Injected during build
+#[no_mangle]
+extern "Rust" {
+    fn set_custom_probe(line: u64) -> ();
+}
 
 /// Send a message to another actor. The result is placed as a CBOR-encoded
 /// receipt in the block registry, and can be retrieved by the returned BlockId.
+#[instrument()]
 #[allow(clippy::too_many_arguments)]
 pub fn send(
     context: Context<'_, impl Kernel>,

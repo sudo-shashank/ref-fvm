@@ -11,6 +11,13 @@ use super::error::Abort;
 use super::{charge_for_exec, update_gas_available, Context, InvocationData};
 use crate::call_manager::backtrace;
 use crate::kernel::{self, ExecutionError, Kernel, SyscallError};
+use fuzzing_tracker::instrument;
+#[cfg(feature="tracing")]
+// Injected during build
+#[no_mangle]
+extern "Rust" {
+    fn set_custom_probe(line: u64) -> ();
+}
 
 /// Binds syscalls to a linker, converting the returned error according to the syscall convention:
 ///
@@ -63,6 +70,7 @@ where
     T: SyscallSafe,
 {
     type Value = T;
+    #[instrument()]
     fn into(self) -> Result<Result<Self::Value, SyscallError>, Abort> {
         Ok(Ok(self?))
     }
@@ -74,6 +82,7 @@ where
     T: SyscallSafe,
 {
     type Value = T;
+    #[instrument()]
     fn into(self) -> Result<Result<Self::Value, SyscallError>, Abort> {
         match self {
             Ok(value) => Ok(Ok(value)),
@@ -86,6 +95,7 @@ where
     }
 }
 
+#[instrument()]
 fn memory_and_data<'a, K: Kernel>(
     caller: &'a mut Caller<'_, InvocationData<K>>,
 ) -> (&'a mut Memory, &'a mut InvocationData<K>) {
@@ -114,6 +124,7 @@ macro_rules! impl_bind_syscalls {
             Ret: IntoSyscallResult,
            $($t: WasmTy+SyscallSafe,)*
         {
+            #[instrument()]
             fn bind(
                 &mut self,
                 module: &'static str,

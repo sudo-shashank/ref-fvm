@@ -3,6 +3,14 @@
 
 use crate::machine::NetworkConfig;
 
+use fuzzing_tracker::instrument;
+#[cfg(feature="tracing")]
+// Injected during build
+#[no_mangle]
+extern "Rust" {
+    fn set_custom_probe(line: u64) -> ();
+}
+
 /// Execution level memory tracking and adjustment.
 pub trait MemoryLimiter: Sized {
     /// Get a snapshot of the total memory required by the callstack (in bytes). This currently
@@ -47,6 +55,7 @@ pub struct DefaultMemoryLimiter {
 }
 
 impl DefaultMemoryLimiter {
+    #[instrument]
     pub fn new(max_memory_bytes: usize) -> Self {
         Self {
             max_memory_bytes,
@@ -54,16 +63,19 @@ impl DefaultMemoryLimiter {
         }
     }
 
+    #[instrument]
     pub fn for_network(config: &NetworkConfig) -> Self {
         Self::new(config.max_memory_bytes as usize)
     }
 }
 
 impl MemoryLimiter for DefaultMemoryLimiter {
+    #[instrument]
     fn memory_used(&self) -> usize {
         self.curr_memory_bytes
     }
 
+    #[instrument]
     fn grow_memory(&mut self, bytes: usize) -> bool {
         let total_desired = self.curr_memory_bytes.saturating_add(bytes);
 
@@ -75,6 +87,7 @@ impl MemoryLimiter for DefaultMemoryLimiter {
         true
     }
 
+    #[instrument]
     fn with_stack_frame<T, G, F, R>(t: &mut T, g: G, f: F) -> R
     where
         G: Fn(&mut T) -> &mut Self,

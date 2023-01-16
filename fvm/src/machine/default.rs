@@ -29,6 +29,15 @@ use crate::system_actor::State as SystemActorState;
 
 pub const EVENTS_AMT_BITWIDTH: u32 = 5;
 
+use fuzzing_tracker::instrument;
+#[cfg(feature="tracing")]
+// Injected during build
+#[no_mangle]
+extern "Rust" {
+    fn set_custom_probe(line: u64) -> ();
+}
+
+
 pub struct DefaultMachine<B, E> {
     /// The initial execution context for this epoch.
     context: MachineContext,
@@ -60,6 +69,7 @@ where
     ///    version, etc.).
     /// * `blockstore`: The underlying [blockstore][`Blockstore`] for reading/writing state.
     /// * `externs`: Client-provided ["external"][`Externs`] methods for accessing chain state.
+    #[instrument]
     pub fn new(context: &MachineContext, blockstore: B, externs: E) -> anyhow::Result<Self> {
         const SUPPORTED_VERSIONS: RangeInclusive<NetworkVersion> =
             NetworkVersion::V18..=NetworkVersion::V18;
@@ -136,26 +146,32 @@ where
     type Externs = E;
     type Limiter = DefaultMemoryLimiter;
 
+    #[instrument]
     fn blockstore(&self) -> &Self::Blockstore {
         self.state_tree.store()
     }
 
+    #[instrument]
     fn context(&self) -> &MachineContext {
         &self.context
     }
 
+    #[instrument]
     fn externs(&self) -> &Self::Externs {
         &self.externs
     }
 
+    #[instrument]
     fn builtin_actors(&self) -> &Manifest {
         &self.builtin_actors
     }
 
+    #[instrument]
     fn state_tree(&self) -> &StateTree<Self::Blockstore> {
         &self.state_tree
     }
 
+    #[instrument]
     fn state_tree_mut(&mut self) -> &mut StateTree<Self::Blockstore> {
         &mut self.state_tree
     }
@@ -165,6 +181,7 @@ where
     /// This method also flushes all new blocks (reachable from this new root CID) from the write
     /// buffer into the underlying blockstore (the blockstore with which the machine was
     /// constructed).
+    #[instrument]
     fn flush(&mut self) -> Result<Cid> {
         let root = self.state_tree_mut().flush()?;
         self.blockstore().flush(&root).or_fatal()?;
@@ -172,6 +189,7 @@ where
     }
 
     /// Creates an uninitialized actor.
+    #[instrument]
     fn create_actor(&mut self, addr: &Address, act: ActorState) -> Result<ActorID> {
         let state_tree = self.state_tree_mut();
 
@@ -181,6 +199,7 @@ where
         Ok(addr_id)
     }
 
+    #[instrument]
     fn transfer(&mut self, from: ActorID, to: ActorID, value: &TokenAmount) -> Result<()> {
         if value.is_negative() {
             return Err(syscall_error!(IllegalArgument;
@@ -222,6 +241,7 @@ where
         Ok(())
     }
 
+    #[instrument]
     fn commit_events(&self, events: &[StampedEvent]) -> Result<Option<Cid>> {
         if events.is_empty() {
             return Ok(None);
@@ -249,14 +269,17 @@ where
         Ok(Some(amt_cid))
     }
 
+    #[instrument]
     fn into_store(self) -> Self::Blockstore {
         self.state_tree.into_store()
     }
 
+    #[instrument]
     fn machine_id(&self) -> &str {
         &self.id
     }
 
+    #[instrument]
     fn new_limiter(&self) -> Self::Limiter {
         DefaultMemoryLimiter::for_network(&self.context().network)
     }

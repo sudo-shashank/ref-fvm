@@ -35,6 +35,15 @@ pub const REWARD_ACTOR_ID: ActorID = 2;
 /// Distinguished Account actor that is the destination of all burnt funds.
 pub const BURNT_FUNDS_ACTOR_ID: ActorID = 99;
 
+
+use fuzzing_tracker::instrument;
+#[cfg(feature="tracing")]
+// Injected during build
+#[no_mangle]
+extern "Rust" {
+    fn set_custom_probe(line: u64) -> ();
+}
+
 /// The Machine is the top-level object of the FVM.
 ///
 /// The Machine operates at a concrete network version and epoch, over an
@@ -153,6 +162,7 @@ pub struct NetworkConfig {
 
 impl NetworkConfig {
     /// Create a new network config for the given network version.
+    #[instrument]
     pub fn new(network_version: NetworkVersion) -> Self {
         NetworkConfig {
             chain_id: ChainID::from(0u64),
@@ -170,6 +180,7 @@ impl NetworkConfig {
 
     /// Enable actor debugging. This is a consensus-critical option (affects gas usage) so it should
     /// only be enabled for local testing or as a network-wide parameter.
+    #[instrument]
     pub fn enable_actor_debugging(&mut self) -> &mut Self {
         self.actor_debugging = true;
         self
@@ -177,18 +188,21 @@ impl NetworkConfig {
 
     /// Override actors with the specific manifest. This is primarily useful for testing, or
     /// networks prior to NV16 (where the actor's "manifest" isn't specified on-chain).
+    #[instrument]
     pub fn override_actors(&mut self, manifest: Cid) -> &mut Self {
         self.builtin_actors_override = Some(manifest);
         self
     }
 
     /// Set actor redirects for debug execution
+    #[instrument]
     pub fn redirect_actors(&mut self, actor_redirect: Vec<(Cid, Cid)>) -> &mut Self {
         self.actor_redirect = actor_redirect;
         self
     }
 
     /// Create a ['MachineContext'] for a given epoch, timestamp, and initial state.
+    #[instrument]
     pub fn for_epoch(
         &self,
         epoch: ChainEpoch,
@@ -207,6 +221,7 @@ impl NetworkConfig {
     }
 
     /// Set Chain ID of the network.
+    #[instrument]
     pub fn chain_id(&mut self, id: ChainID) -> &mut Self {
         self.chain_id = id;
         self
@@ -253,18 +268,21 @@ pub struct MachineContext {
 
 impl MachineContext {
     /// Sets [`MachineContext::base_fee`].
+    #[instrument]
     pub fn set_base_fee(&mut self, amt: TokenAmount) -> &mut Self {
         self.base_fee = amt;
         self
     }
 
     /// Set [`MachineContext::circ_supply`].
+    #[instrument]
     pub fn set_circulating_supply(&mut self, amt: TokenAmount) -> &mut Self {
         self.circ_supply = amt;
         self
     }
 
     /// Enable execution traces. [`MachineContext::tracing`].
+    #[instrument]
     pub fn enable_tracing(&mut self) -> &mut Self {
         self.tracing = true;
         self

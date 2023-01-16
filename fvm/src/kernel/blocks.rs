@@ -10,6 +10,15 @@ use thiserror::Error;
 use super::{ExecutionError, SyscallError};
 use crate::syscall_error;
 
+
+use fuzzing_tracker::instrument;
+#[cfg(feature="tracing")]
+// Injected during build
+#[no_mangle]
+extern "Rust" {
+    fn set_custom_probe(line: u64) -> ();
+}
+
 #[derive(Default)]
 pub struct BlockRegistry {
     blocks: Vec<Block>,
@@ -42,6 +51,7 @@ pub struct Block {
 }
 
 impl Block {
+    #[instrument]
     pub fn new(codec: u64, data: impl Into<Box<[u8]>>) -> Self {
         // This requires an extra allocation (ew) but no extra copy on send.
         // The extra allocation is basically nothing.
@@ -84,6 +94,7 @@ pub enum BlockPutError {
 }
 
 impl From<BlockPutError> for super::SyscallError {
+    #[instrument]
     fn from(e: BlockPutError) -> Self {
         match e {
             BlockPutError::TooManyBlocks => syscall_error!(LimitExceeded; "{}", e),
@@ -93,6 +104,7 @@ impl From<BlockPutError> for super::SyscallError {
 }
 
 impl From<BlockPutError> for ExecutionError {
+    #[instrument]
     fn from(e: BlockPutError) -> Self {
         ExecutionError::Syscall(e.into())
     }
@@ -103,18 +115,21 @@ impl From<BlockPutError> for ExecutionError {
 pub struct InvalidHandleError(BlockId);
 
 impl From<InvalidHandleError> for SyscallError {
+    #[instrument]
     fn from(e: InvalidHandleError) -> Self {
         syscall_error!(InvalidHandle; "{}", e)
     }
 }
 
 impl From<InvalidHandleError> for ExecutionError {
+    #[instrument]
     fn from(e: InvalidHandleError) -> Self {
         ExecutionError::Syscall(e.into())
     }
 }
 
 impl BlockRegistry {
+    #[instrument]
     pub(crate) fn new() -> Self {
         Self { blocks: Vec::new() }
     }
@@ -122,6 +137,7 @@ impl BlockRegistry {
 
 impl BlockRegistry {
     /// Adds a new block to the registry, and returns a handle to refer to it.
+    #[instrument]
     pub fn put(&mut self, block: Block) -> Result<BlockId, BlockPutError> {
         if self.is_full() {
             return Err(BlockPutError::TooManyBlocks);
@@ -137,6 +153,7 @@ impl BlockRegistry {
     }
 
     /// Gets the block associated with a block handle.
+    #[instrument]
     pub fn get(&self, id: BlockId) -> Result<&Block, InvalidHandleError> {
         if id < FIRST_ID {
             return Err(InvalidHandleError(id));
@@ -148,6 +165,7 @@ impl BlockRegistry {
     }
 
     /// Returns the size & codec of the specified block.
+    #[instrument]
     pub fn stat(&self, id: BlockId) -> Result<BlockStat, InvalidHandleError> {
         if id < FIRST_ID {
             return Err(InvalidHandleError(id));
@@ -162,6 +180,7 @@ impl BlockRegistry {
             })
     }
 
+    #[instrument]
     pub fn is_full(&self) -> bool {
         self.blocks.len() as u32 == MAX_BLOCKS
     }

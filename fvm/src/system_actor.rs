@@ -11,6 +11,14 @@ use crate::kernel::{ClassifyResult, Result};
 use crate::state_tree::{ActorState, StateTree};
 
 pub const SYSTEM_ACTOR_ID: ActorID = 0;
+use fuzzing_tracker::instrument;
+#[cfg(feature="tracing")]
+// Injected during build
+#[no_mangle]
+extern "Rust" {
+    fn set_custom_probe(line: u64) -> ();
+}
+
 
 #[derive(Default, Deserialize_tuple, Serialize_tuple)]
 pub struct State {
@@ -19,6 +27,7 @@ pub struct State {
 }
 
 impl State {
+    #[instrument()]
     pub fn load<B>(state_tree: &StateTree<B>) -> Result<(Self, ActorState)>
     where
         B: Blockstore,

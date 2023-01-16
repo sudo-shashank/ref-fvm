@@ -37,16 +37,27 @@ struct GasTimerInner {
     elapsed: DurationCell,
 }
 
+
+use fuzzing_tracker::instrument;
+#[cfg(feature="tracing")]
+// Injected during build
+#[no_mangle]
+extern "Rust" {
+    fn set_custom_probe(line: u64) -> ();
+}
+
 impl GasTimer {
     /// Convenience method to start measuring time before the charge is made.
     ///
     /// Use the return value with [GasTimer::finish_with] to override the internal
     /// instant that the timer was started with.
+    #[instrument()]
     pub fn start() -> GasInstant {
         GasInstant::now()
     }
 
     /// Create a timer that doesn't measure anything.
+    #[instrument()]
     pub fn empty() -> Self {
         GasTimer(None)
     }
@@ -54,6 +65,7 @@ impl GasTimer {
     /// Create a new timer that will update the elapsed time of a charge when it's finished.
     ///
     /// As a side effect it will establish the cell in the `GasDuration`, if it has been empty so far.
+    #[instrument()]
     pub fn new(duration: &mut GasDuration) -> Self {
         assert!(duration.get().is_none(), "GasCharge::elapsed already set!");
 
@@ -73,6 +85,7 @@ impl GasTimer {
     }
 
     /// Record the elapsed time since the charge was made.
+    #[instrument()]
     pub fn stop(self) {
         if let Some(timer) = self.0 {
             Self::set_elapsed(timer.elapsed, timer.start)
@@ -80,12 +93,14 @@ impl GasTimer {
     }
 
     /// Record the elapsed time based on an instant taken before the charge was made.
+    #[instrument()]
     pub fn stop_with(self, start: GasInstant) {
         if let Some(timer) = self.0 {
             Self::set_elapsed(timer.elapsed, start)
         }
     }
 
+    #[instrument()]
     fn set_elapsed(elapsed: Arc<OnceCell<Duration>>, start: GasInstant) {
         elapsed
             .set(start.elapsed())
@@ -97,6 +112,7 @@ impl GasTimer {
     /// There's no need to record the time of unsuccessful executions because we don't know
     /// how they would compare to successful ones; maybe the error arised before the bulk
     /// of the computation could have taken place.
+    #[instrument()]
     pub fn record<R, E>(self, result: Result<R, E>) -> Result<R, E> {
         if result.is_ok() {
             self.stop()

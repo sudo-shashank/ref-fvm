@@ -31,7 +31,7 @@ pub trait Rand {
     ) -> anyhow::Result<[u8; 32]>;
 
     /// Gets 32 bytes of randomness for ChainRand paramaterized by the DomainSeparationTag,
-    /// ChainEpoch, Entropy from the latest beacon entry.
+    /// ChainEpoch, Entropy from the latest beacon entry.    
     fn get_beacon_randomness(
         &self,
         pers: i64,

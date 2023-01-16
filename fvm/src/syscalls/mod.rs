@@ -14,6 +14,14 @@ use crate::Kernel;
 
 pub(crate) mod error;
 
+use fuzzing_tracker::instrument;
+#[cfg(feature="tracing")]
+// Injected during build
+#[no_mangle]
+extern "Rust" {
+    fn set_custom_probe(line: u64) -> ();
+}
+
 pub mod actor;
 pub mod bind;
 pub mod context;
@@ -64,6 +72,7 @@ pub struct InvocationData<K> {
 
 /// Updates the global available gas in the Wasm module after a syscall, to account for any
 /// gas consumption that happened on the host side.
+#[instrument()]
 pub fn update_gas_available(
     ctx: &mut impl AsContextMut<Data = InvocationData<impl Kernel>>,
 ) -> Result<(), Abort> {
@@ -84,6 +93,7 @@ pub fn update_gas_available(
 }
 
 /// Updates the FVM-side gas tracker with newly accrued execution gas charges.
+#[instrument()]
 pub fn charge_for_exec<K: Kernel>(
     ctx: &mut impl AsContextMut<Data = InvocationData<K>>,
 ) -> Result<(), Abort> {
@@ -147,6 +157,7 @@ pub fn charge_for_exec<K: Kernel>(
 /// The Wasm instrumentation machinery via [fvm_wasm_instrument::gas_metering::MemoryGrowCost]
 /// only charges for growing the memory _beyond_ the initial amount. It's up to us to make sure
 /// the minimum memory is properly charged for.
+#[instrument()]
 pub fn charge_for_init<K: Kernel>(
     ctx: &mut impl AsContextMut<Data = InvocationData<K>>,
     module: &Module,
@@ -171,6 +182,7 @@ pub fn charge_for_init<K: Kernel>(
 ///
 /// In practice this includes all the time elapsed since the `InvocationData` was created,
 /// ie. this is the first time we'll use the `last_charge_time`.
+#[instrument()]
 pub fn record_init_time<K: Kernel>(
     ctx: &mut impl AsContextMut<Data = InvocationData<K>>,
     timer: GasTimer,
@@ -187,6 +199,7 @@ pub fn record_init_time<K: Kernel>(
 }
 
 /// Get the minimum amount of memory required by a module.
+#[instrument()]
 fn min_memory_bytes(module: &Module) -> crate::kernel::Result<usize> {
     // NOTE: Inside wasmtime this happens slightly differently, by iterating the memory plans:
     // https://github.com/bytecodealliance/wasmtime/blob/v2.0.1/crates/runtime/src/instance/allocator/pooling.rs#L380-L403
@@ -205,6 +218,7 @@ fn min_memory_bytes(module: &Module) -> crate::kernel::Result<usize> {
 /// This relies on a few assumptions:
 ///     * That we use the default value for `InstanceLimits::tables` and only allow 1 table.
 ///     * That `Linker::command` will only allow them to be exported with the name "table".
+#[instrument()]
 fn min_table_elements(module: &Module) -> Option<u32> {
     if let Some(ExternType::Table(t)) = module.get_export("table") {
         Some(t.minimum())
@@ -218,6 +232,7 @@ use self::error::Abort;
 
 // Binds the syscall handlers so they can handle invocations
 // from the actor code.
+#[instrument()]
 pub fn bind_syscalls(
     linker: &mut Linker<InvocationData<impl Kernel + 'static>>,
 ) -> anyhow::Result<()> {
