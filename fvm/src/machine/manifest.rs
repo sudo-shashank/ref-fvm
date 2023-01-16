@@ -12,7 +12,7 @@ const INIT_ACTOR_NAME: &str = "init";
 const SYSTEM_ACTOR_NAME: &str = "system";
 const PLACEHOLDER_ACTOR_NAME: &str = "placeholder";
 const EAM_ACTOR_NAME: &str = "eam";
-const ETHACCOUNT_ACTOR_NAME: &str = "evm";
+const ETHACCOUNT_ACTOR_NAME: &str = "ethaccount";
 
 use fuzzing_tracker::instrument;
 #[cfg(feature="tracing")]
