@@ -47,9 +47,6 @@ pub fn lookup_delegated_address(
     let obuf = context.memory.try_slice_mut(obuf_off, obuf_len)?;
     match context.kernel.lookup_delegated_address(actor_id)? {
         Some(address) => {
-            // test panic
-            panic!("Error");
-            
             let address = address.to_bytes();
             obuf.get_mut(..address.len())
                 .ok_or_else(
