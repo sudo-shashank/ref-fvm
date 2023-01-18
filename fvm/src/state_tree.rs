@@ -384,7 +384,7 @@ where
     pub fn register_new_address(&mut self, addr: &Address) -> Result<ActorID> {
         let (mut state, mut actor) = InitActorState::load(self)?;
 
-        let new_addr = state.map_address_to_new_id(self.store(), addr)?;
+        let new_id = state.map_address_to_new_id(self.store(), addr)?;
 
         // Set state for init actor in store and update root Cid
         actor.state = self
@@ -393,8 +393,9 @@ where
             .or_fatal()?;
 
         self.set_actor(crate::init_actor::INIT_ACTOR_ID, actor)?;
+        self.resolve_cache.borrow_mut().insert(*addr, new_id);
 
-        Ok(new_addr)
+        Ok(new_id)
     }
 
     /// Begin a new state transaction. Transactions stack.

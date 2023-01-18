@@ -71,8 +71,13 @@ where
     /// * `externs`: Client-provided ["external"][`Externs`] methods for accessing chain state.
     #[instrument]
     pub fn new(context: &MachineContext, blockstore: B, externs: E) -> anyhow::Result<Self> {
+        #[cfg(not(feature = "hyperspace"))]
         const SUPPORTED_VERSIONS: RangeInclusive<NetworkVersion> =
             NetworkVersion::V18..=NetworkVersion::V18;
+
+        #[cfg(feature = "hyperspace")]
+        const SUPPORTED_VERSIONS: RangeInclusive<NetworkVersion> =
+            NetworkVersion::V18..=NetworkVersion::MAX;
 
         debug!(
             "initializing a new machine, epoch={}, base_fee={}, nv={:?}, root={}",
