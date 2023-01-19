@@ -19,7 +19,7 @@ extern "Rust" {
     fn set_custom_probe(line: u64) -> ();
 }
 
-#[instrument()]
+#[cfg_attr(feature="tracing", instrument())]
 pub fn block_open(context: Context<'_, impl Kernel>, cid: u32) -> Result<sys::out::ipld::IpldOpen> {
     #[cfg(feature = "instrument-syscalls")]
     unsafe { set_syscall_probe("syscall.ipld.block_open") };
@@ -32,7 +32,7 @@ pub fn block_open(context: Context<'_, impl Kernel>, cid: u32) -> Result<sys::ou
     })
 }
 
-#[instrument()]
+#[cfg_attr(feature="tracing", instrument())]
 pub fn block_create(
     context: Context<'_, impl Kernel>,
     codec: u64,
@@ -45,7 +45,7 @@ pub fn block_create(
     context.kernel.block_create(codec, data)
 }
 
-#[instrument()]
+#[cfg_attr(feature="tracing", instrument())]
 pub fn block_link(
     context: Context<'_, impl Kernel>,
     id: u32,
@@ -66,7 +66,7 @@ pub fn block_link(
     context.memory.write_cid(&cid, cid_off, cid_len)
 }
 
-#[instrument()]
+#[cfg_attr(feature="tracing", instrument())]
 pub fn block_read(
     context: Context<'_, impl Kernel>,
     id: u32,
@@ -80,7 +80,7 @@ pub fn block_read(
     context.kernel.block_read(id, offset, data)
 }
 
-#[instrument()]
+#[cfg_attr(feature="tracing", instrument())]
 pub fn block_stat(context: Context<'_, impl Kernel>, id: u32) -> Result<sys::out::ipld::IpldStat> {
     #[cfg(feature = "instrument-syscalls")]
     unsafe { set_syscall_probe("syscall.ipld.block_stat") };

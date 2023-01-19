@@ -27,7 +27,7 @@ pub struct State {
 }
 
 impl State {
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn load<B>(state_tree: &StateTree<B>) -> Result<(Self, ActorState)>
     where
         B: Blockstore,

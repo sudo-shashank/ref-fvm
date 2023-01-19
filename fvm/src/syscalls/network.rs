@@ -22,7 +22,7 @@ extern "Rust" {
 }
 
 /// Returns the network circ supply split as two u64 ordered in little endian.
-#[instrument()]
+#[cfg_attr(feature="tracing", instrument())]
 pub fn total_fil_circ_supply(context: Context<'_, impl Kernel>) -> Result<sys::TokenAmount> {
     #[cfg(feature = "instrument-syscalls")]
     unsafe { set_syscall_probe("syscall.network.total_fil_circ_supply") };
@@ -34,14 +34,14 @@ pub fn total_fil_circ_supply(context: Context<'_, impl Kernel>) -> Result<sys::T
         .or_fatal()
 }
 
-#[instrument()]
+#[cfg_attr(feature="tracing", instrument())]
 pub fn context(context: Context<'_, impl Kernel>) -> crate::kernel::Result<NetworkContext> {
     #[cfg(feature = "instrument-syscalls")]
     unsafe { set_syscall_probe("syscall.network.context") };
     context.kernel.network_context()
 }
 
-#[instrument()]
+#[cfg_attr(feature="tracing", instrument())]
 pub fn tipset_cid(
     context: Context<'_, impl Kernel>,
     epoch: i64,

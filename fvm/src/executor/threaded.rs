@@ -39,7 +39,7 @@ where
     type Kernel = E::Kernel;
 
     /// This is the entrypoint to execute a message.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     fn execute_message(
         &mut self,
         msg: Message,

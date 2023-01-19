@@ -51,7 +51,7 @@ impl State {
     // ideally we would just #[cfg(test)] this, but it is used by non test-gated code in
     // integration/tester.
     #[allow(unused)]
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn new_test<B: Blockstore>(store: &B) -> Self {
         #[cfg(feature = "m2-native")]
         use cid::multihash::Code::Blake2b256;

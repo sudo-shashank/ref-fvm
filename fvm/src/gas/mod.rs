@@ -104,12 +104,12 @@ impl Gas {
 }
 
 impl num_traits::Zero for Gas {
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     fn zero() -> Self {
         Gas(0)
     }
 
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     fn is_zero(&self) -> bool {
         self.0 == 0
     }
@@ -201,7 +201,7 @@ pub struct GasTracker {
 impl GasTracker {
     /// Gas limit and gas used are provided in protocol units (i.e. full units).
     /// They are converted to milligas for internal canonical accounting.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn new(gas_limit: Gas, gas_used: Gas, enable_tracing: bool) -> Self {
         Self {
             gas_limit,
@@ -210,7 +210,7 @@ impl GasTracker {
         }
     }
 
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     fn charge_gas_inner(&self, to_use: Gas) -> Result<()> {
         // The gas type uses saturating math.
         let gas_used = self.gas_used.get() + to_use;
@@ -226,7 +226,7 @@ impl GasTracker {
 
     /// Safely consumes gas and returns an out of gas error if there is not sufficient
     /// enough gas remaining for charge.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn charge_gas(&self, name: &str, to_use: Gas) -> Result<GasTimer> {
         log::trace!("charging gas: {} {}", name, to_use);
         let res = self.charge_gas_inner(to_use);
@@ -241,7 +241,7 @@ impl GasTracker {
     }
 
     /// Applies the specified gas charge, where quantities are supplied in milligas.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn apply_charge(&self, mut charge: GasCharge) -> Result<GasTimer> {
         let to_use = charge.total();
         log::trace!("charging gas: {} {}", &charge.name, to_use);
@@ -257,7 +257,7 @@ impl GasTracker {
 
     /// Absorbs another GasTracker (usually a nested one) into this one, charging for gas
     /// used and appending all traces.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn absorb(&self, other: &GasTracker) -> Result<()> {
         if let Some(trace) = &self.trace {
             trace.borrow_mut().extend(other.drain_trace());
@@ -267,31 +267,31 @@ impl GasTracker {
 
     /// Make a "child" gas-tracker with a new limit, if and only if the new limit is less than the
     /// available gas.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn new_child(&self, new_limit: Gas) -> Option<GasTracker> {
         (self.gas_available() > new_limit)
             .then(|| GasTracker::new(new_limit, Gas::zero(), self.trace.is_some()))
     }
 
     /// Getter for the maximum gas usable by this message.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn gas_limit(&self) -> Gas {
         self.gas_limit
     }
 
     /// Getter for gas used.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn gas_used(&self) -> Gas {
         self.gas_used.get()
     }
 
     /// Getter for gas available.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn gas_available(&self) -> Gas {
         self.gas_limit - self.gas_used.get()
     }
 
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn drain_trace(&self) -> impl Iterator<Item = GasCharge> + '_ {
         self.trace
             .as_ref()

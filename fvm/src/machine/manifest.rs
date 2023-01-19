@@ -72,13 +72,13 @@ impl Manifest {
     ];
 
     #[cfg(any(feature = "testing", test))]
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn dummy() -> Self {
         Self::new(Self::DUMMY_CODES.iter().copied()).unwrap()
     }
 
     /// Load a manifest from the blockstore.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn load<B: Blockstore>(bs: &B, root_cid: &Cid, ver: u32) -> anyhow::Result<Manifest> {
         if ver != 1 {
             return Err(anyhow!("unsupported manifest version {}", ver));
@@ -94,7 +94,7 @@ impl Manifest {
     }
 
     /// Construct a new manifest from actor name/cid tuples.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn new(iter: impl IntoIterator<Item = (impl Into<String>, Cid)>) -> anyhow::Result<Self> {
         let mut by_name = HashMap::new();
         let mut by_id = HashMap::new();
@@ -146,72 +146,72 @@ impl Manifest {
     }
 
     /// Returns the code CID for a builtin actor, given the actor's ID.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn code_by_id(&self, id: u32) -> Option<&Cid> {
         self.by_id.get(&id)
     }
 
     /// Returns the the actor code's "id" if it's a builtin actor. Otherwise, returns 0.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn id_by_code(&self, code: &Cid) -> u32 {
         self.by_code.get(code).copied().unwrap_or(0)
     }
 
     /// Returns true id the passed code CID is the account actor.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn is_account_actor(&self, cid: &Cid) -> bool {
         &self.account_code == cid
     }
 
     /// Returns true id the passed code CID is the placeholder actor.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn is_placeholder_actor(&self, cid: &Cid) -> bool {
         &self.placeholder_code == cid
     }
 
     /// Returns true id the passed code CID is the EthAccount actor.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn is_ethaccount_actor(&self, cid: &Cid) -> bool {
         &self.ethaccount_code == cid
     }
 
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn builtin_actor_codes(&self) -> impl Iterator<Item = &Cid> {
         self.by_id.values()
     }
 
     /// Returns the code CID for the account actor.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn get_account_code(&self) -> &Cid {
         &self.account_code
     }
 
     /// Returns the code CID for the init actor.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn get_init_code(&self) -> &Cid {
         &self.init_code
     }
 
     /// Returns the code CID for the system actor.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn get_system_code(&self) -> &Cid {
         &self.system_code
     }
 
     /// Returns the code CID for the eam actor.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn get_eam_code(&self) -> &Cid {
         &self.eam_code
     }
 
     /// Returns the code CID for the system actor.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn get_placeholder_code(&self) -> &Cid {
         &self.placeholder_code
     }
 
     /// Returns the code CID for the Ethereum Account actor.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn get_ethaccount_code(&self) -> &Cid {
         &self.ethaccount_code
     }

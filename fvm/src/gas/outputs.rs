@@ -29,7 +29,7 @@ pub(crate) struct GasOutputs {
 }
 
 impl GasOutputs {
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn compute(
         // In whole gas units.
         gas_used: i64,
@@ -72,7 +72,7 @@ impl GasOutputs {
     }
 }
 
-#[instrument()]
+#[cfg_attr(feature="tracing", instrument())]
 fn compute_gas_overestimation_burn(gas_used: i64, gas_limit: i64) -> (i64, i64) {
     const GAS_OVERUSE_NUM: i64 = 11;
     const GAS_OVERUSE_DENOM: i64 = 10;

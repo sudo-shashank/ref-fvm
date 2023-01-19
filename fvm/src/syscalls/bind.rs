@@ -70,7 +70,7 @@ where
     T: SyscallSafe,
 {
     type Value = T;
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     fn into(self) -> Result<Result<Self::Value, SyscallError>, Abort> {
         Ok(Ok(self?))
     }
@@ -82,7 +82,7 @@ where
     T: SyscallSafe,
 {
     type Value = T;
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     fn into(self) -> Result<Result<Self::Value, SyscallError>, Abort> {
         match self {
             Ok(value) => Ok(Ok(value)),
@@ -95,7 +95,7 @@ where
     }
 }
 
-#[instrument()]
+#[cfg_attr(feature="tracing", instrument())]
 fn memory_and_data<'a, K: Kernel>(
     caller: &'a mut Caller<'_, InvocationData<K>>,
 ) -> (&'a mut Memory, &'a mut InvocationData<K>) {
@@ -124,7 +124,7 @@ macro_rules! impl_bind_syscalls {
             Ret: IntoSyscallResult,
            $($t: WasmTy+SyscallSafe,)*
         {
-            #[instrument()]
+            #[cfg_attr(feature="tracing", instrument())]
             fn bind(
                 &mut self,
                 module: &'static str,

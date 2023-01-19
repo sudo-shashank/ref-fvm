@@ -37,7 +37,7 @@ extern "Rust" {
 ///  - 0: verification ok.
 ///  - -1: verification failed.
 #[allow(clippy::too_many_arguments)]
-#[instrument()]
+#[cfg_attr(feature="tracing", instrument())]
 pub fn verify_signature(
     context: Context<'_, impl Kernel>,
     sig_type: u32,
@@ -63,7 +63,7 @@ pub fn verify_signature(
         .map(|v| if v { 0 } else { -1 })
 }
 
-#[instrument()]
+#[cfg_attr(feature="tracing", instrument())]
 pub fn recover_secp_public_key(
     context: Context<'_, impl Kernel>,
     hash_off: u32,
@@ -90,7 +90,7 @@ pub fn recover_secp_public_key(
 
 /// Hashes input data using the specified hash function, writing the digest into the provided
 /// buffer.
-#[instrument()]
+#[cfg_attr(feature="tracing", instrument())]
 pub fn hash(
     context: Context<'_, impl Kernel>,
     hash_code: u64,
@@ -121,7 +121,7 @@ pub fn hash(
 /// (CommPs) and sizes.
 ///
 /// Writes the CID in the provided output buffer.
-#[instrument()]
+#[cfg_attr(feature="tracing", instrument())]
 pub fn compute_unsealed_sector_cid(
     context: Context<'_, impl Kernel>,
     proof_type: i64, // RegisteredSealProof,
@@ -154,7 +154,7 @@ pub fn compute_unsealed_sector_cid(
 /// The return i32 indicates the status code of the verification:
 ///  - 0: verification ok.
 ///  - -1: verification failed.
-#[instrument()]
+#[cfg_attr(feature="tracing", instrument())]
 pub fn verify_seal(
     context: Context<'_, impl Kernel>,
     info_off: u32, // SealVerifyInfo
@@ -176,7 +176,7 @@ pub fn verify_seal(
 /// The return i32 indicates the status code of the verification:
 ///  - 0: verification ok.
 ///  - -1: verification failed.
-#[instrument()]
+#[cfg_attr(feature="tracing", instrument())]
 pub fn verify_post(
     context: Context<'_, impl Kernel>,
     info_off: u32, // WindowPoStVerifyInfo,
@@ -203,7 +203,7 @@ pub fn verify_post(
 /// the "parent grinding fault", in which case it must be the sibling of h1 (same parent tipset) and one of the
 /// blocks in the parent of h2 (i.e. h2's grandparent).
 ///
-#[instrument()]
+#[cfg_attr(feature="tracing", instrument())]
 pub fn verify_consensus_fault(
     context: Context<'_, impl Kernel>,
     h1_off: u32,
@@ -244,7 +244,7 @@ pub fn verify_consensus_fault(
 /// The return i32 indicates the status code of the verification:
 ///  - 0: verification ok.
 ///  - -1: verification failed.
-#[instrument()]
+#[cfg_attr(feature="tracing", instrument())]
 pub fn verify_aggregate_seals(
     context: Context<'_, impl Kernel>,
     agg_off: u32, // AggregateSealVerifyProofAndInfos
@@ -264,7 +264,7 @@ pub fn verify_aggregate_seals(
 /// The return i32 indicates the status code of the verification:
 ///  - 0: verification ok.
 ///  - -1: verification failed.
-#[instrument()]
+#[cfg_attr(feature="tracing", instrument())]
 pub fn verify_replica_update(
     context: Context<'_, impl Kernel>,
     rep_off: u32, // ReplicaUpdateInfo
@@ -285,7 +285,7 @@ pub fn verify_replica_update(
 ///
 /// When successful, this method will write a single byte back into the array at `result_off` for
 /// each result: 0 for failed, 1 for success.
-#[instrument()]
+#[cfg_attr(feature="tracing", instrument())]
 pub fn batch_verify_seals(
     context: Context<'_, impl Kernel>,
     batch_off: u32,

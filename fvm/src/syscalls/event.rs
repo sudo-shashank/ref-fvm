@@ -27,7 +27,7 @@ extern "Rust" {
 ///
 /// Calling this syscall may immediately halt execution with an out of gas error,
 /// if such condition arises.
-#[instrument()]
+#[cfg_attr(feature="tracing", instrument())]
 pub fn emit_event(
     context: Context<'_, impl Kernel>,
     event_off: u32, // ActorEvent

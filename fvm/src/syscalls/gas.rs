@@ -20,7 +20,7 @@ extern "Rust" {
     fn set_syscall_probe(probe: &'static str) -> ();
 }
 
-#[instrument()]
+#[cfg_attr(feature="tracing", instrument())]
 pub fn charge_gas(
     context: Context<'_, impl Kernel>,
     name_off: u32,
@@ -38,7 +38,7 @@ pub fn charge_gas(
         .map(|_| ())
 }
 
-#[instrument()]
+#[cfg_attr(feature="tracing", instrument())]
 pub fn available(context: Context<'_, impl Kernel>) -> Result<u64> {
     Ok(context.kernel.gas_available().round_down() as u64)
 }

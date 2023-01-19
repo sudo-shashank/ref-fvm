@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0, MIT
 use std::fmt::Display;
 
+use fuzzing_tracker::instrument;
 use fvm_shared::address::Address;
 use fvm_shared::error::{ErrorNumber, ExitCode};
 use fvm_shared::{ActorID, MethodNum};
-use crate::kernel::SyscallError;
 
-use fuzzing_tracker::instrument;
-#[cfg(feature="tracing")]
+use crate::kernel::SyscallError;
+#[cfg(feature = "tracing")]
 // Injected during build
 #[no_mangle]
 extern "Rust" {
@@ -38,14 +38,14 @@ impl Display for Backtrace {
 }
 
 impl Backtrace {
-    /// Returns true if the backtrace is completely empty.    
-    #[instrument()]
+    /// Returns true if the backtrace is completely empty.
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn is_empty(&self) -> bool {
         self.frames.is_empty() && self.cause.is_none()
     }
 
-    /// Clear the backtrace.       
-    #[instrument()] 
+    /// Clear the backtrace.
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn clear(&mut self) {
         self.cause = None;
         self.frames.clear();
@@ -56,8 +56,8 @@ impl Backtrace {
     /// Note: Backtraces are populated _backwards_. That is, a frame is inserted
     /// every time an actor returns. That's why `begin()` resets any currently
     /// accumulated state, as once an error occurs, we want to track its
-    /// propagation all the way up.        
-    #[instrument()]
+    /// propagation all the way up.
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn begin(&mut self, cause: Cause) {
         self.cause = Some(cause);
         self.frames.clear();
@@ -67,16 +67,16 @@ impl Backtrace {
     ///
     /// This is useful to stamp a backtrace with its cause after the frames
     /// have been collected, such as when we ultimately handle a fatal error at
-    /// the top of its propagation chain.       
-    #[instrument()]
+    /// the top of its propagation chain.
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn set_cause(&mut self, cause: Cause) {
         self.cause = Some(cause);
     }
 
     /// Push a "frame" (actor exit) onto the backtrace.
     ///
-    /// This should be called every time an actor exits with an error.       
-    #[instrument()]
+    /// This should be called every time an actor exits with an error.
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn push_frame(&mut self, frame: Frame) {
         self.frames.push(frame)
     }
@@ -134,7 +134,7 @@ pub enum Cause {
 
 impl Cause {
     /// Records a failing syscall as the cause of a backtrace.
-    #[instrument()]
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn from_syscall(module: &'static str, function: &'static str, err: SyscallError) -> Self {
         Self::Syscall {
             module,
@@ -144,8 +144,8 @@ impl Cause {
         }
     }
 
-    /// Records a fatal error as the cause of a backtrace.    
-    #[instrument()]
+    /// Records a fatal error as the cause of a backtrace.
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn from_fatal(err: anyhow::Error) -> Self {
         Self::Fatal {
             error_msg: format!("{:#}", err),

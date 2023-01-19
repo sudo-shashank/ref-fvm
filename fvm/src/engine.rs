@@ -65,7 +65,7 @@ pub struct EngineConfig {
 }
 
 impl From<&NetworkConfig> for EngineConfig {
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     fn from(nc: &NetworkConfig) -> Self {
         EngineConfig {
             max_call_depth: nc.max_call_depth,
@@ -79,7 +79,7 @@ impl From<&NetworkConfig> for EngineConfig {
 }
 
 impl MultiEngine {
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn new(concurrency: u32) -> MultiEngine {
         if concurrency == 0 {
             panic!("concurrency must be positive");
@@ -90,7 +90,7 @@ impl MultiEngine {
         }
     }
 
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn get(&self, nc: &NetworkConfig) -> anyhow::Result<EnginePool> {
         let mut engines = self
             .engines
@@ -115,7 +115,7 @@ impl Default for MultiEngine {
     }
 }
 
-#[instrument()]
+#[cfg_attr(feature="tracing", instrument())]
 fn wasmtime_config(ec: &EngineConfig) -> anyhow::Result<wasmtime::Config> {
     let instance_count = (1 + ec.max_call_depth) * ec.concurrency;
     let instance_memory_maximum_size = ec.max_inst_memory_bytes;
@@ -252,7 +252,7 @@ pub struct EnginePool(Arc<EngineInner>);
 impl EnginePool {
     /// Acquire an [`Engine`]. This method will block until an [`Engine`] is available, and will
     /// release the engine on drop.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn acquire(&self) -> Engine {
         *self
             .0
@@ -266,7 +266,7 @@ impl EnginePool {
     /// poisoned.
     ///
     /// The [`Engine`] is released on drop.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn try_acquire(&self) -> Option<Engine> {
         self.0
             .limit
@@ -279,13 +279,13 @@ impl EnginePool {
             })
     }
 
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn new_default(ec: EngineConfig) -> anyhow::Result<Self> {
         EnginePool::new(&wasmtime_config(&ec)?, ec)
     }
 
     /// Create a new Engine from a wasmtime config.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn new(c: &wasmtime::Config, ec: EngineConfig) -> anyhow::Result<Self> {
         let engine = wasmtime::Engine::new(c)?;
 
@@ -332,7 +332,7 @@ impl Deref for Engine {
 }
 
 impl Drop for Engine {
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     fn drop(&mut self) {
         let mut limit = self.0.limit.lock().unwrap();
         *limit += 1;
@@ -346,7 +346,7 @@ impl Engine {
     /// method errors if the code CID is not found in the store.
     ///
     /// Return the original byte code size.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn prepare_actor_code<BS: Blockstore>(
         &self,
         code_cid: &Cid,
@@ -378,7 +378,7 @@ impl Engine {
     /// make this method return an Err immediately.
     ///
     /// Returns the total original byte size of the modules
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn preload<'a, BS, I>(&self, blockstore: BS, cids: I) -> anyhow::Result<usize>
     where
         BS: Blockstore,
@@ -395,7 +395,7 @@ impl Engine {
         Ok(total_size)
     }
 
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     fn with_redirect<'a>(&'a self, k: &'a Cid) -> &'a Cid {
         match &self.0.actor_redirect.get(k) {
             Some(cid) => cid,
@@ -404,7 +404,7 @@ impl Engine {
     }
 
     /// Loads some Wasm code into the engine and prepares it for execution.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn prepare_wasm_bytecode(&self, k: &Cid, wasm: &[u8]) -> anyhow::Result<(ModuleRecord, Vec<u8>)> {
         let k = self.with_redirect(k);
         let mut cache = self.0.module_cache.lock().expect("module_cache poisoned");
@@ -419,7 +419,7 @@ impl Engine {
         Ok((module, bin))
     }
 
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     fn load_raw(&self, raw_wasm: &[u8]) -> anyhow::Result<(ModuleRecord, Vec<u8>)> {
         // First make sure that non-instrumented wasm is valid
         Module::validate(&self.0.engine, raw_wasm)
@@ -474,7 +474,7 @@ impl Engine {
     /// # Safety
     ///
     /// See [`wasmtime::Module::deserialize`] for safety information.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub unsafe fn load_compiled(&self, k: &Cid, compiled: &[u8]) -> anyhow::Result<Module> {
         let k = self.with_redirect(k);
         let mut cache = self.0.module_cache.lock().expect("module_cache poisoned");
@@ -496,7 +496,7 @@ impl Engine {
     }
 
     /// Lookup a loaded wasmtime module.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn get_module(
         &self,
         blockstore: &impl Blockstore,
@@ -520,7 +520,7 @@ impl Engine {
     }
 
     /// This returns an `Abort` as it may need to execute initialization code, charge gas, etc.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn instantiate<K: Kernel>(
         &self,
         store: &mut wasmtime::Store<InvocationData<K>>,
@@ -619,7 +619,7 @@ impl Engine {
     }
 
     /// Construct a new wasmtime "store" from the given kernel.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn new_store<K: Kernel>(&self, mut kernel: K) -> wasmtime::Store<InvocationData<K>> {
         let memory_bytes = kernel.limiter_mut().memory_used();
 
@@ -668,7 +668,7 @@ impl Engine {
 struct WasmtimeLimiter<L>(L);
 
 impl<L: MemoryLimiter> wasmtime::ResourceLimiter for WasmtimeLimiter<L> {
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     fn memory_growing(&mut self, current: usize, desired: usize, maximum: Option<usize>) -> bool {
         if maximum.map_or(false, |m| desired > m) {
             return false;
@@ -677,7 +677,7 @@ impl<L: MemoryLimiter> wasmtime::ResourceLimiter for WasmtimeLimiter<L> {
         self.0.grow_instance_memory(current, desired)
     }
 
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     fn table_growing(&mut self, current: u32, desired: u32, maximum: Option<u32>) -> bool {
         if maximum.map_or(false, |m| desired > m) {
             return false;

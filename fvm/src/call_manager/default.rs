@@ -110,7 +110,7 @@ where
 {
     type Machine = M;
 
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     fn new(
         machine: M,
         engine: Engine,
@@ -142,12 +142,12 @@ where
         })))
     }
 
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     fn limiter_mut(&mut self) -> &mut <Self::Machine as Machine>::Limiter {
         &mut self.limits
     }
 
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     fn send<K>(
         &mut self,
         from: ActorID,
@@ -222,7 +222,7 @@ where
         result
     }
 
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     fn with_transaction(
         &mut self,
         read_only: bool,
@@ -246,7 +246,7 @@ where
         res
     }
 
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     fn finish(mut self) -> (FinishRet, Self::Machine) {
         let InnerDefaultCallManager {
             machine,
@@ -280,44 +280,44 @@ where
 
     // Accessor methods so the trait can implement some common methods by default.
 
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     fn machine(&self) -> &Self::Machine {
         &self.machine
     }
 
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     fn machine_mut(&mut self) -> &mut Self::Machine {
         &mut self.machine
     }
 
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     fn engine(&self) -> &Engine {
         &self.engine
     }
 
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     fn gas_tracker(&self) -> &GasTracker {
         &self.gas_tracker
     }
 
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     fn gas_premium(&self) -> &TokenAmount {
         &self.gas_premium
     }
 
     // Other accessor methods
 
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     fn origin(&self) -> ActorID {
         self.origin
     }
 
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     fn nonce(&self) -> u64 {
         self.nonce
     }
 
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     fn next_actor_address(&self) -> Address {
         // Base the next address on the address specified as the message origin. This lets us use,
         // e.g., an f2 address even if we can't look it up anywhere.
@@ -335,7 +335,7 @@ where
         Address::new_actor(&b)
     }
 
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     fn create_actor(
         &mut self,
         code_id: Cid,
@@ -384,13 +384,13 @@ where
         Ok(())
     }
 
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     fn append_event(&mut self, evt: StampedEvent) {
         self.events.append_event(evt)
     }
 
     // Helper for creating actors. This really doesn't belong on this trait.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     fn invocation_count(&self) -> u64 {
         self.invocation_count
     }
@@ -400,7 +400,7 @@ impl<M> DefaultCallManager<M>
 where
     M: Machine,
 {
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     fn trace(&mut self, trace: ExecutionEvent) {
         // The price of deref magic is that you sometimes need to tell the compiler: no, this is
         // fine.
@@ -412,7 +412,7 @@ where
         s.exec_trace.push(trace);
     }
 
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     fn create_account_actor<K>(&mut self, addr: &Address) -> Result<ActorID>
     where
         K: Kernel<CallManager = Self>,
@@ -458,7 +458,7 @@ where
         Ok(id)
     }
 
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     fn create_placeholder_actor<K>(&mut self, addr: &Address) -> Result<ActorID>
     where
         K: Kernel<CallManager = Self>,
@@ -473,7 +473,7 @@ where
     }
 
     /// Send without checking the call depth.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     fn send_unchecked<K>(
         &mut self,
         from: ActorID,
@@ -509,7 +509,7 @@ where
     }
 
     /// Send with resolved addresses.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     fn send_resolved<K>(
         &mut self,
         from: ActorID,
@@ -720,7 +720,7 @@ where
     /// Temporarily replace `self` with a version that contains `None` for the inner part,
     /// to be able to hand over ownership of `self` to a new kernel, while the older kernel
     /// has a reference to the hollowed out version.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     fn map_mut<F, T>(&mut self, f: F) -> T
     where
         F: FnOnce(Self) -> (T, Self),
@@ -730,7 +730,7 @@ where
 
     /// Check that we're not violating the call stack depth, then envelope a call
     /// with an increase/decrease of the depth to make sure none of them are missed.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     fn with_stack_frame<F, V>(&mut self, f: F) -> Result<V>
     where
         F: FnOnce(&mut Self) -> Result<V>,
@@ -767,19 +767,19 @@ pub struct EventsAccumulator {
 }
 
 impl EventsAccumulator {
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     fn is_read_only(&self) -> bool {
         self.read_only_layers > 0
     }
 
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     fn append_event(&mut self, evt: StampedEvent) {
         if !self.is_read_only() {
             self.events.push(evt)
         }
     }
 
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     fn create_layer(&mut self, read_only: bool) {
         if read_only || self.is_read_only() {
             self.read_only_layers += 1;
@@ -788,7 +788,7 @@ impl EventsAccumulator {
         }
     }
 
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     fn merge_last_layer(&mut self) -> Result<()> {
         if self.is_read_only() {
             self.read_only_layers -= 1;
@@ -802,7 +802,7 @@ impl EventsAccumulator {
         }
     }
 
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     fn discard_last_layer(&mut self) -> Result<()> {
         if self.is_read_only() {
             self.read_only_layers -= 1;
@@ -817,7 +817,7 @@ impl EventsAccumulator {
         Ok(())
     }
 
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     fn finish(self) -> Vec<StampedEvent> {
         // Ideally would assert here, but there's risk of poisoning the Machine.
         // Cannot return a Result because the call site expects infallibility.

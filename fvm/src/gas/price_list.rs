@@ -306,7 +306,7 @@ pub(crate) struct ScalingCost {
 
 impl ScalingCost {
     /// Computes the scaled cost for the given value, or saturates.    
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn apply<V>(&self, value: V) -> Gas
     where
         Gas: Mul<V, Output = Gas>,
@@ -315,7 +315,7 @@ impl ScalingCost {
     }
 
     /// Create a new "fixed" cost. Useful when some network versions scale the cost and others don't.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn fixed(g: Gas) -> Self {
         Self {
             flat: g,
@@ -324,7 +324,7 @@ impl ScalingCost {
     }
 
     /// Create a "zero" scaling cost.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn zero() -> Self {
         Self {
             flat: Gas::zero(),
@@ -343,7 +343,7 @@ pub(crate) struct Step {
 }
 
 impl StepCost {
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub(crate) fn lookup(&self, x: i64) -> Gas {
         let mut i: i64 = 0;
         while i < self.0.len() as i64 {
@@ -938,7 +938,7 @@ pub fn price_list_by_network_version(network_version: NetworkVersion) -> &'stati
 }
 
 impl Rules for WasmGasPrices {
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     fn instruction_cost(&self, instruction: &Operator) -> anyhow::Result<InstructionCost> {
         use InstructionCost::*;
 
@@ -1237,12 +1237,12 @@ impl Rules for WasmGasPrices {
         }
     }
 
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     fn gas_charge_cost(&self) -> u64 {
         0
     }
 
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     fn linear_calc_cost(&self) -> u64 {
         0
     }

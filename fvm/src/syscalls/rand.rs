@@ -23,7 +23,7 @@ extern "Rust" {
 /// The supplied output buffer must have at least 32 bytes of capacity.
 /// If this syscall succeeds, exactly 32 bytes will be written starting at the
 /// supplied offset.
-#[instrument()]
+#[cfg_attr(feature="tracing", instrument())]
 pub fn get_chain_randomness(
     context: Context<'_, impl Kernel>,
     pers: i64,  // DomainSeparationTag
@@ -43,7 +43,7 @@ pub fn get_chain_randomness(
 /// The supplied output buffer must have at least 32 bytes of capacity.
 /// If this syscall succeeds, exactly 32 bytes will be written starting at the
 /// supplied offset.
-#[instrument()]
+#[cfg_attr(feature="tracing", instrument())]
 pub fn get_beacon_randomness(
     context: Context<'_, impl Kernel>,
     pers: i64,  // DomainSeparationTag

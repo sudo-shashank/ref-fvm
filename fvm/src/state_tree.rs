@@ -78,13 +78,13 @@ where
     K: Hash + Eq + Clone,
 {
     /// Insert a k/v pair into the map, recording the previous value in the history.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     fn insert(&mut self, k: K, v: V) {
         self.history.push((k.clone(), self.map.insert(k, v)))
     }
 
     /// Lookup a value in the map given a key.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     fn get<Q>(&self, k: &Q) -> Option<&V>
     where
         K: Borrow<Q>,
@@ -95,7 +95,7 @@ where
 
     /// Looks up a value in the map given a key, or initializes the entry with the provided
     /// function. Any modifications to the map are recorded in the history.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     fn get_or_try_insert_with<F, E>(&mut self, k: K, f: F) -> std::result::Result<&V, E>
     where
         F: FnOnce() -> std::result::Result<V, E>,
@@ -111,7 +111,7 @@ where
     }
 
     /// Rollback to the specified point in history.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     fn rollback(&mut self, height: usize) {
         if self.history.len() <= height {
             return;
@@ -125,19 +125,19 @@ where
     }
 
     /// Returns the current history length.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     fn history_len(&self) -> usize {
         self.history.len()
     }
 
     /// Discards all undo history.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     fn discard_history(&mut self) {
         self.history.clear();
     }
 
     /// Iterate mutably over the current map.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     fn iter_mut(&mut self) -> impl Iterator<Item = (&K, &mut V)> {
         self.map.iter_mut()
     }
@@ -163,7 +163,7 @@ impl<S> StateTree<S>
 where
     S: Blockstore,
 {
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn new(store: S, version: StateTreeVersion) -> Result<Self> {
         let info = match version {
             StateTreeVersion::V0
@@ -199,7 +199,7 @@ where
     }
 
     /// Constructor for a hamt state tree given an IPLD store
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn new_from_root(store: S, c: &Cid) -> Result<Self> {
         // Try to load state root, if versioned
         let (version, info, actors) = match store.get_cbor(c) {
@@ -252,14 +252,14 @@ where
     }
 
     /// Retrieve store reference to modify db.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn store(&self) -> &S {
         self.hamt.store()
     }
 
     /// Get actor state from an address. Will be resolved to ID address.
     #[cfg(feature = "testing")]
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn get_actor_by_address(&self, addr: &Address) -> Result<Option<ActorState>> {
         let id = match self.lookup_id(addr)? {
             Some(id) => id,
@@ -269,7 +269,7 @@ where
     }
 
     /// Get actor state from an actor ID.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn get_actor(&self, id: ActorID) -> Result<Option<ActorState>> {
         self.actor_cache
             .borrow_mut()
@@ -290,7 +290,7 @@ where
     }
 
     /// Set actor state with an actor ID.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn set_actor(&mut self, id: ActorID, actor: ActorState) -> Result<()> {
         self.assert_writable()?;
 
@@ -305,7 +305,7 @@ where
     }
 
     /// Get an ID address from any Address
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn lookup_id(&self, addr: &Address) -> Result<Option<ActorID>> {
         if let &Payload::ID(id) = addr.payload() {
             return Ok(Some(id));
@@ -328,7 +328,7 @@ where
     }
 
     /// Delete actor identified by the supplied ID. Returns no error if the actor doesn't exist.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn delete_actor(&mut self, id: ActorID) -> Result<()> {
         self.assert_writable()?;
 
@@ -345,7 +345,7 @@ where
 
     /// Mutate and set actor state identified by the supplied ID. Returns a fatal error if the actor
     /// doesn't exist.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn mutate_actor<F>(&mut self, id: ActorID, mutate: F) -> Result<()>
     where
         F: FnOnce(&mut ActorState) -> Result<()>,
@@ -361,7 +361,7 @@ where
 
     /// Try to mutate the actor state identified by the supplied ID, returning false if the actor
     /// doesn't exist.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn maybe_mutate_actor_id<F>(&mut self, id: ActorID, mutate: F) -> Result<bool>
     where
         F: FnOnce(&mut ActorState) -> Result<()>,
@@ -380,7 +380,7 @@ where
     }
 
     /// Register a new address through the init actor.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn register_new_address(&mut self, addr: &Address) -> Result<ActorID> {
         let (mut state, mut actor) = InitActorState::load(self)?;
 
@@ -399,7 +399,7 @@ where
     }
 
     /// Begin a new state transaction. Transactions stack.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn begin_transaction(&mut self, read_only: bool) {
         if read_only || self.is_read_only() {
             self.read_only_layers += 1;
@@ -412,7 +412,7 @@ where
     }
 
     /// End a transaction, reverting if requested.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn end_transaction(&mut self, revert: bool) -> Result<()> {
         if self.is_read_only() {
             self.read_only_layers -= 1;
@@ -440,13 +440,13 @@ where
     }
 
     /// Returns true if we're inside of a transaction.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn in_transaction(&self) -> bool {
         !(self.read_only_layers == 0 && self.layers.is_empty())
     }
 
     /// Flush state tree and return Cid root.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn flush(&mut self) -> Result<Cid> {
         if self.in_transaction() {
             return Err(ExecutionError::Fatal(anyhow!(
@@ -494,12 +494,12 @@ where
     }
 
     /// Consumes this StateTree and returns the Blockstore it owns via the HAMT.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn into_store(self) -> S {
         self.hamt.into_store()
     }
 
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn for_each<F>(&self, mut f: F) -> anyhow::Result<()>
     where
         F: FnMut(Address, &ActorState) -> anyhow::Result<()>,
@@ -511,12 +511,12 @@ where
         Ok(())
     }
 
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn is_read_only(&self) -> bool {
         self.read_only_layers > 0
     }
 
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     fn assert_writable(&self) -> Result<()> {
         if self.is_read_only() {
             Err(syscall_error!(ReadOnly; "cannot mutate state while in read-only mode").into())
@@ -545,7 +545,7 @@ pub struct ActorState {
 
 impl ActorState {
     /// Constructor for actor state
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn new(
         code: Cid,
         state: Cid,
@@ -563,7 +563,7 @@ impl ActorState {
     }
 
     /// Construct a new empty actor with the specified code.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn new_empty(code: Cid, delegated_address: Option<Address>) -> Self {
         ActorState {
             code,
@@ -575,7 +575,7 @@ impl ActorState {
     }
 
     /// Safely deducts funds from an Actor
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn deduct_funds(&mut self, amt: &TokenAmount) -> Result<()> {
         if &self.balance < amt {
             return Err(
@@ -587,7 +587,7 @@ impl ActorState {
         Ok(())
     }
     /// Deposits funds to an Actor
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn deposit_funds(&mut self, amt: &TokenAmount) {
         self.balance += amt;
     }

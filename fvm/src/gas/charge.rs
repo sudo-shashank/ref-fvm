@@ -38,7 +38,7 @@ pub struct GasCharge {
 }
 
 impl GasCharge {
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn new(name: impl Into<Cow<'static, str>>, compute_gas: Gas, other_gas: Gas) -> Self {
         let name = name.into();
         Self {
@@ -51,7 +51,7 @@ impl GasCharge {
 
     /// Calculates total gas charge (in milligas) by summing compute and
     /// storage gas associated with this charge.
-    #[instrument()]
+    #[cfg_attr(feature="tracing", instrument())]
     pub fn total(&self) -> Gas {
         self.compute_gas + self.other_gas
     }
