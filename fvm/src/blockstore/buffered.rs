@@ -11,7 +11,7 @@ use byteorder::{BigEndian, ByteOrder, ReadBytesExt};
 use cid::Cid;
 use fuzzing_tracker::instrument;
 use fvm_ipld_blockstore::{Blockstore, Buffered};
-use fvm_ipld_encoding::DAG_CBOR;
+use fvm_ipld_encoding::{CBOR, DAG_CBOR};
 use fvm_shared::commcid::{FIL_COMMITMENT_SEALED, FIL_COMMITMENT_UNSEALED};
 #[cfg(feature = "tracing")]
 // Injected during build
@@ -191,9 +191,10 @@ fn copy_rec<'a>(
     //    perf impact.
 
     // TODO(M2): Make this not cbor specific.
+    // TODO(M2): Allow CBOR (not just DAG_CBOR).
     match (root.codec(), root.hash().code(), root.hash().size()) {
         // Allow non-truncated blake2b-256 raw/cbor (code/state)
-        (DAG_RAW | DAG_CBOR, BLAKE2B_256, BLAKE2B_LEN) => (),
+        (DAG_RAW | DAG_CBOR | CBOR, BLAKE2B_256, BLAKE2B_LEN) => (),
         // Ignore raw identity cids (fake code cids)
         (DAG_RAW, IDENTITY, _) => return Ok(()),
         // Copy links from cbor identity cids.
