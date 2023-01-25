@@ -9,9 +9,16 @@ use std::io::{Cursor, Read, Seek};
 use anyhow::{anyhow, Result};
 use byteorder::{BigEndian, ByteOrder, ReadBytesExt};
 use cid::Cid;
+use fuzzing_tracker::instrument;
 use fvm_ipld_blockstore::{Blockstore, Buffered};
 use fvm_ipld_encoding::DAG_CBOR;
 use fvm_shared::commcid::{FIL_COMMITMENT_SEALED, FIL_COMMITMENT_UNSEALED};
+#[cfg(feature = "tracing")]
+// Injected during build
+#[no_mangle]
+extern "Rust" {
+    fn set_custom_probe(line: u64) -> ();
+}
 
 /// Wrapper around `Blockstore` to limit and have control over when values are written.
 /// This type is not threadsafe and can only be used in synchronous contexts.
@@ -62,6 +69,7 @@ where
 /// This was implemented because the CBOR library we use does not expose low
 /// methods like this, requiring us to deserialize the whole CBOR payload, which
 /// is unnecessary and quite inefficient for our usecase here.
+#[cfg_attr(feature = "tracing", instrument())]
 fn cbor_read_header_buf<B: Read>(br: &mut B, scratch: &mut [u8]) -> anyhow::Result<(u8, usize)> {
     let first = br.read_u8()?;
     let maj = (first & 0xe0) >> 5;
@@ -112,6 +120,7 @@ fn cbor_read_header_buf<B: Read>(br: &mut B, scratch: &mut [u8]) -> anyhow::Resu
 /// Given a CBOR serialized IPLD buffer, read through all of it and return all the Links.
 /// This function is useful because it is quite a bit more fast than doing this recursively on a
 /// deserialized IPLD object.
+#[cfg_attr(feature = "tracing", instrument())]
 fn scan_for_links<B: Read + Seek, F>(buf: &mut B, mut callback: F) -> Result<()>
 where
     F: FnMut(Cid) -> anyhow::Result<()>,
@@ -164,6 +173,7 @@ where
 }
 
 /// Copies the IPLD DAG under `root` from the cache to the base store.
+#[cfg_attr(feature = "tracing", instrument())]
 fn copy_rec<'a>(
     cache: &'a HashMap<Cid, Vec<u8>>,
     root: Cid,
@@ -232,6 +242,7 @@ impl<BS> Blockstore for BufferedBlockstore<BS>
 where
     BS: Blockstore,
 {
+    #[cfg_attr(feature = "tracing", instrument())]
     fn get(&self, cid: &Cid) -> Result<Option<Vec<u8>>> {
         Ok(if let Some(data) = self.write.borrow().get(cid) {
             Some(data.clone())
@@ -239,12 +250,12 @@ where
             self.base.get(cid)?
         })
     }
-
+    #[cfg_attr(feature = "tracing", instrument())]
     fn put_keyed(&self, cid: &Cid, buf: &[u8]) -> Result<()> {
         self.write.borrow_mut().insert(*cid, Vec::from(buf));
         Ok(())
     }
-
+    #[cfg_attr(feature = "tracing", instrument())]
     fn has(&self, k: &Cid) -> Result<bool> {
         if self.write.borrow().contains_key(k) {
             Ok(true)
@@ -253,6 +264,7 @@ where
         }
     }
 
+    #[cfg_attr(feature = "tracing", instrument())]
     fn put_many_keyed<D, I>(&self, blocks: I) -> Result<()>
     where
         Self: Sized,

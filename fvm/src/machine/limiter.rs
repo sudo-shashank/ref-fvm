@@ -1,10 +1,10 @@
 // Copyright 2021-2023 Protocol Labs
 // SPDX-License-Identifier: Apache-2.0, MIT
 
-use crate::machine::NetworkConfig;
-
 use fuzzing_tracker::instrument;
-#[cfg(feature="tracing")]
+
+use crate::machine::NetworkConfig;
+#[cfg(feature = "tracing")]
 // Injected during build
 #[no_mangle]
 extern "Rust" {
@@ -55,7 +55,7 @@ pub struct DefaultMemoryLimiter {
 }
 
 impl DefaultMemoryLimiter {
-    #[instrument]
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn new(max_memory_bytes: usize) -> Self {
         Self {
             max_memory_bytes,
@@ -63,19 +63,19 @@ impl DefaultMemoryLimiter {
         }
     }
 
-    #[instrument]
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn for_network(config: &NetworkConfig) -> Self {
         Self::new(config.max_memory_bytes as usize)
     }
 }
 
 impl MemoryLimiter for DefaultMemoryLimiter {
-    #[instrument]
+    #[cfg_attr(feature = "tracing", instrument())]
     fn memory_used(&self) -> usize {
         self.curr_memory_bytes
     }
 
-    #[instrument]
+    #[cfg_attr(feature = "tracing", instrument())]
     fn grow_memory(&mut self, bytes: usize) -> bool {
         let total_desired = self.curr_memory_bytes.saturating_add(bytes);
 
@@ -87,7 +87,7 @@ impl MemoryLimiter for DefaultMemoryLimiter {
         true
     }
 
-    #[instrument]
+    #[cfg_attr(feature = "tracing", instrument())]
     fn with_stack_frame<T, G, F, R>(t: &mut T, g: G, f: F) -> R
     where
         G: Fn(&mut T) -> &mut Self,

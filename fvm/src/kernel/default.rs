@@ -8,6 +8,7 @@ use std::path::PathBuf;
 use anyhow::{anyhow, Context as _};
 use cid::Cid;
 use filecoin_proofs_api::{self as proofs, ProverId, PublicReplicaInfo, SectorId};
+use fuzzing_tracker::instrument;
 use fvm_ipld_blockstore::Blockstore;
 use fvm_ipld_encoding::bytes_32;
 use fvm_shared::address::Payload;
@@ -35,15 +36,12 @@ use crate::gas::GasTimer;
 use crate::machine::{MachineContext, NetworkConfig};
 use crate::state_tree::ActorState;
 use crate::syscall_error;
-
-use fuzzing_tracker::instrument;
-#[cfg(feature="tracing")]
+#[cfg(feature = "tracing")]
 // Injected during build
 #[no_mangle]
 extern "Rust" {
     fn set_custom_probe(line: u64) -> ();
 }
-
 
 lazy_static! {
     static ref NUM_CPUS: usize = num_cpus::get();
@@ -81,7 +79,7 @@ where
     C: CallManager,
 {
     type CallManager = C;
-    #[instrument]
+    #[cfg_attr(feature = "tracing", instrument())]
     fn into_inner(self) -> (Self::CallManager, BlockRegistry)
     where
         Self: Sized,
@@ -89,7 +87,7 @@ where
         (self.call_manager, self.blocks)
     }
 
-    #[instrument]
+    #[cfg_attr(feature = "tracing", instrument())]
     fn new(
         mgr: C,
         blocks: BlockRegistry,
@@ -108,7 +106,7 @@ where
         }
     }
 
-    #[instrument]
+    #[cfg_attr(feature = "tracing", instrument())]
     fn machine(&self) -> &<Self::CallManager as CallManager>::Machine {
         self.call_manager.machine()
     }
@@ -119,7 +117,7 @@ where
     C: CallManager,
 {
     /// Returns `Some(actor_state)` or `None` if this actor has been deleted.
-    #[instrument]
+    #[cfg_attr(feature = "tracing", instrument())]
     fn get_self(&self) -> Result<Option<ActorState>> {
         self.call_manager
             .state_tree()
@@ -129,7 +127,7 @@ where
     }
 
     /// Mutates this actor's state, returning a syscall error if this actor has been deleted.
-    #[instrument]
+    #[cfg_attr(feature = "tracing", instrument())]
     fn mutate_self<F>(&mut self, mutate: F) -> Result<()>
     where
         F: FnOnce(&mut ActorState) -> Result<()>,
@@ -152,7 +150,7 @@ impl<C> SelfOps for DefaultKernel<C>
 where
     C: CallManager,
 {
-    #[instrument]
+    #[cfg_attr(feature = "tracing", instrument())]
     fn root(&self) -> Result<Cid> {
         let t = self
             .call_manager
@@ -168,7 +166,7 @@ where
         Ok(cid)
     }
 
-    #[instrument]
+    #[cfg_attr(feature = "tracing", instrument())]
     fn set_root(&mut self, new: Cid) -> Result<()> {
         let t = self
             .call_manager
@@ -180,7 +178,7 @@ where
         }))
     }
 
-    #[instrument]
+    #[cfg_attr(feature = "tracing", instrument())]
     fn current_balance(&self) -> Result<TokenAmount> {
         let t = self
             .call_manager
@@ -190,7 +188,7 @@ where
         t.record(Ok(self.get_self()?.map(|a| a.balance).unwrap_or_default()))
     }
 
-    #[instrument]
+    #[cfg_attr(feature = "tracing", instrument())]
     fn self_destruct(&mut self, beneficiary: &Address) -> Result<()> {
         // Idempotentcy: If the actor doesn't exist, this won't actually do anything. The current
         // balance will be zero, and `delete_actor_id` will be a no-op.
@@ -229,7 +227,7 @@ impl<C> IpldBlockOps for DefaultKernel<C>
 where
     C: CallManager,
 {
-    #[instrument]
+    #[cfg_attr(feature = "tracing", instrument())]
     fn block_open(&mut self, cid: &Cid) -> Result<(BlockId, BlockStat)> {
         // TODO(M2): Check for reachability here.
 
@@ -266,7 +264,7 @@ where
         Ok((id, stat))
     }
 
-    #[instrument]
+    #[cfg_attr(feature = "tracing", instrument())]
     fn block_create(&mut self, codec: u64, data: &[u8]) -> Result<BlockId> {
         if data.len() > self.machine().context().max_block_size {
             return Err(syscall_error!(LimitExceeded; "blocks may not be larger than 1MiB").into());
@@ -279,7 +277,7 @@ where
         t.record(Ok(self.blocks.put(Block::new(codec, data))?))
     }
 
-    #[instrument]
+    #[cfg_attr(feature = "tracing", instrument())]
     fn block_link(&mut self, id: BlockId, hash_fun: u64, hash_len: u32) -> Result<Cid> {
         if hash_fun != BLAKE2B_256 || hash_len != 32 {
             return Err(syscall_error!(IllegalCid; "cids must be 32-byte blake2b").into());
@@ -311,7 +309,7 @@ where
         Ok(k)
     }
 
-    #[instrument]
+    #[cfg_attr(feature = "tracing", instrument())]
     fn block_read(&self, id: BlockId, offset: u32, buf: &mut [u8]) -> Result<i32> {
         let tstart = GasTimer::start();
         // First, find the end of the _logical_ buffer (taking the offset into account).
@@ -360,7 +358,7 @@ impl<C> MessageOps for DefaultKernel<C>
 where
     C: CallManager,
 {
-    #[instrument]
+    #[cfg_attr(feature = "tracing", instrument())]
     fn msg_context(&self) -> Result<MessageContext> {
         let t = self
             .call_manager
@@ -397,7 +395,7 @@ impl<C> SendOps for DefaultKernel<C>
 where
     C: CallManager,
 {
-    #[instrument]
+    #[cfg_attr(feature = "tracing", instrument())]
     fn send(
         &mut self,
         recipient: &Address,
@@ -462,7 +460,7 @@ impl<C> CircSupplyOps for DefaultKernel<C>
 where
     C: CallManager,
 {
-    #[instrument]
+    #[cfg_attr(feature = "tracing", instrument())]
     fn total_fil_circ_supply(&self) -> Result<TokenAmount> {
         // From v15 and onwards, Filecoin mainnet was fixed to use a static circ supply per epoch.
         // The value reported to the FVM from clients is now the static value,
@@ -475,7 +473,7 @@ impl<C> CryptoOps for DefaultKernel<C>
 where
     C: CallManager,
 {
-    #[instrument]
+    #[cfg_attr(feature = "tracing", instrument())]
     fn verify_signature(
         &self,
         sig_type: SignatureType,
@@ -506,7 +504,7 @@ where
         }))
     }
 
-    #[instrument]
+    #[cfg_attr(feature = "tracing", instrument())]
     fn recover_secp_public_key(
         &self,
         hash: &[u8; SECP_SIG_MESSAGE_HASH_SIZE],
@@ -525,7 +523,7 @@ where
         )
     }
 
-    #[instrument]
+    #[cfg_attr(feature = "tracing", instrument())]
     fn hash(&self, code: u64, data: &[u8]) -> Result<MultihashGeneric<64>> {
         let hasher = SupportedHashes::try_from(code).map_err(|e| {
             if let multihash::Error::UnsupportedCode(code) = e {
@@ -544,7 +542,7 @@ where
         t.record(Ok(hasher.digest(data)))
     }
 
-    #[instrument]
+    #[cfg_attr(feature = "tracing", instrument())]
     fn compute_unsealed_sector_cid(
         &self,
         proof_type: RegisteredSealProof,
@@ -562,7 +560,7 @@ where
     }
 
     /// Verify seal proof for sectors. This proof verifies that a sector was sealed by the miner.
-    #[instrument]
+    #[cfg_attr(feature = "tracing", instrument())]
     fn verify_seal(&self, vi: &SealVerifyInfo) -> Result<bool> {
         let t = self
             .call_manager
@@ -573,7 +571,7 @@ where
         t.record(catch_and_log_panic("verifying seal", || verify_seal(vi)))
     }
 
-    #[instrument]
+    #[cfg_attr(feature = "tracing", instrument())]
     fn verify_post(&self, verify_info: &WindowPoStVerifyInfo) -> Result<bool> {
         let t = self
             .call_manager
@@ -585,7 +583,7 @@ where
         }))
     }
 
-    #[instrument]
+    #[cfg_attr(feature = "tracing", instrument())]
     fn verify_consensus_fault(
         &self,
         h1: &[u8],
@@ -612,7 +610,7 @@ where
         Ok(fault)
     }
 
-    #[instrument]
+    #[cfg_attr(feature = "tracing", instrument())]
     fn batch_verify_seals(&self, vis: &[SealVerifyInfo]) -> Result<Vec<bool>> {
         // NOTE: gas has already been charged by the power actor when the batch verify was enqueued.
         // Lotus charges "virtual" gas here for tracing only.
@@ -664,7 +662,7 @@ where
         Ok(out)
     }
 
-    #[instrument]
+    #[cfg_attr(feature = "tracing", instrument())]
     fn verify_aggregate_seals(&self, aggregate: &AggregateSealVerifyProofAndInfos) -> Result<bool> {
         let t = self.call_manager.charge_gas(
             self.call_manager
@@ -676,7 +674,7 @@ where
         }))
     }
 
-    #[instrument]
+    #[cfg_attr(feature = "tracing", instrument())]
     fn verify_replica_update(&self, replica: &ReplicaUpdateInfo) -> Result<bool> {
         let t = self.call_manager.charge_gas(
             self.call_manager
@@ -693,22 +691,22 @@ impl<C> GasOps for DefaultKernel<C>
 where
     C: CallManager,
 {
-    #[instrument]
+    #[cfg_attr(feature = "tracing", instrument())]
     fn gas_used(&self) -> Gas {
         self.call_manager.gas_tracker().gas_used()
     }
 
-    #[instrument]
+    #[cfg_attr(feature = "tracing", instrument())]
     fn gas_available(&self) -> Gas {
         self.call_manager.gas_tracker().gas_available()
     }
 
-    #[instrument]
+    #[cfg_attr(feature = "tracing", instrument())]
     fn charge_gas(&self, name: &str, compute: Gas) -> Result<GasTimer> {
         self.call_manager.gas_tracker().charge_gas(name, compute)
     }
 
-    #[instrument]
+    #[cfg_attr(feature = "tracing", instrument())]
     fn price_list(&self) -> &PriceList {
         self.call_manager.price_list()
     }
@@ -718,7 +716,7 @@ impl<C> NetworkOps for DefaultKernel<C>
 where
     C: CallManager,
 {
-    #[instrument]
+    #[cfg_attr(feature = "tracing", instrument())]
     fn network_context(&self) -> Result<NetworkContext> {
         let t = self
             .call_manager
@@ -752,7 +750,7 @@ where
         Ok(ctx)
     }
 
-    #[instrument]
+    #[cfg_attr(feature = "tracing", instrument())]
     fn tipset_cid(&self, epoch: ChainEpoch) -> Result<Cid> {
         if epoch < 0 {
             return Err(syscall_error!(IllegalArgument; "epoch is negative").into());
@@ -773,7 +771,7 @@ impl<C> RandomnessOps for DefaultKernel<C>
 where
     C: CallManager,
 {
-    #[instrument]
+    #[cfg_attr(feature = "tracing", instrument())]
     fn get_randomness_from_tickets(
         &self,
         personalization: i64,
@@ -796,7 +794,7 @@ where
         )
     }
 
-    #[instrument]
+    #[cfg_attr(feature = "tracing", instrument())]
     fn get_randomness_from_beacon(
         &self,
         personalization: i64,
@@ -824,7 +822,7 @@ impl<C> ActorOps for DefaultKernel<C>
 where
     C: CallManager,
 {
-    #[instrument]
+    #[cfg_attr(feature = "tracing", instrument())]
     fn resolve_address(&self, address: &Address) -> Result<ActorID> {
         let t = self
             .call_manager
@@ -837,7 +835,7 @@ where
             .ok_or_else(|| syscall_error!(NotFound; "actor not found"))?))
     }
 
-    #[instrument]
+    #[cfg_attr(feature = "tracing", instrument())]
     fn get_actor_code_cid(&self, id: ActorID) -> Result<Cid> {
         let t = self
             .call_manager
@@ -853,12 +851,12 @@ where
             .code))
     }
 
-    #[instrument]
+    #[cfg_attr(feature = "tracing", instrument())]
     fn next_actor_address(&self) -> Result<Address> {
         Ok(self.call_manager.next_actor_address())
     }
 
-    #[instrument]
+    #[cfg_attr(feature = "tracing", instrument())]
     fn create_actor(
         &mut self,
         code_id: Cid,
@@ -869,7 +867,7 @@ where
             .create_actor(code_id, actor_id, delegated_address)
     }
 
-    #[instrument]
+    #[cfg_attr(feature = "tracing", instrument())]
     fn get_builtin_actor_type(&self, code_cid: &Cid) -> Result<u32> {
         let t = self
             .call_manager
@@ -885,7 +883,7 @@ where
         Ok(id)
     }
 
-    #[instrument]
+    #[cfg_attr(feature = "tracing", instrument())]
     fn get_code_cid_for_type(&self, typ: u32) -> Result<Cid> {
         let t = self
             .call_manager
@@ -902,7 +900,7 @@ where
         )
     }
 
-    #[instrument]
+    #[cfg_attr(feature = "tracing", instrument())]
     #[cfg(feature = "m2-native")]
     fn install_actor(&mut self, code_id: Cid) -> Result<()> {
         let start = GasTimer::start();
@@ -920,7 +918,7 @@ where
         Ok(())
     }
 
-    #[instrument]
+    #[cfg_attr(feature = "tracing", instrument())]
     fn balance_of(&self, actor_id: ActorID) -> Result<TokenAmount> {
         let t = self
             .call_manager
@@ -936,7 +934,7 @@ where
         )
     }
 
-    #[instrument]
+    #[cfg_attr(feature = "tracing", instrument())]
     fn lookup_delegated_address(&self, actor_id: ActorID) -> Result<Option<Address>> {
         let t = self
             .call_manager
@@ -955,17 +953,17 @@ impl<C> DebugOps for DefaultKernel<C>
 where
     C: CallManager,
 {
-    #[instrument]
+    #[cfg_attr(feature = "tracing", instrument())]
     fn log(&self, msg: String) {
         println!("{}", msg)
     }
 
-    #[instrument]
+    #[cfg_attr(feature = "tracing", instrument())]
     fn debug_enabled(&self) -> bool {
         self.call_manager.context().actor_debugging
     }
 
-    #[instrument]
+    #[cfg_attr(feature = "tracing", instrument())]
     fn store_artifact(&self, name: &str, data: &[u8]) -> Result<()> {
         // Ensure well formed artifact name
         {
@@ -1023,7 +1021,7 @@ where
 {
     type Limiter = <<C as CallManager>::Machine as Machine>::Limiter;
 
-    #[instrument]
+    #[cfg_attr(feature = "tracing", instrument())]
     fn limiter_mut(&mut self) -> &mut Self::Limiter {
         self.call_manager.limiter_mut()
     }
@@ -1033,7 +1031,7 @@ impl<C> EventOps for DefaultKernel<C>
 where
     C: CallManager,
 {
-    #[instrument]
+    #[cfg_attr(feature = "tracing", instrument())]
     fn emit_event(&mut self, evt: ActorEvent) -> Result<()> {
         let t = self
             .call_manager
@@ -1049,7 +1047,7 @@ where
     }
 }
 
-#[instrument]
+#[cfg_attr(feature = "tracing", instrument())]
 fn catch_and_log_panic<F: FnOnce() -> Result<R> + UnwindSafe, R>(context: &str, f: F) -> Result<R> {
     match panic::catch_unwind(f) {
         Ok(v) => v,
@@ -1067,7 +1065,7 @@ enum ProofType {
     Window,
 }
 
-#[instrument]
+#[cfg_attr(feature = "tracing", instrument())]
 fn prover_id_from_u64(id: u64) -> ProverId {
     let mut prover_id = ProverId::default();
     let prover_bytes = Address::new_id(id).payload().to_raw_bytes();
@@ -1075,7 +1073,7 @@ fn prover_id_from_u64(id: u64) -> ProverId {
     prover_id
 }
 
-#[instrument]
+#[cfg_attr(feature = "tracing", instrument())]
 fn get_required_padding(
     old_length: PaddedPieceSize,
     new_piece_length: PaddedPieceSize,
@@ -1098,7 +1096,7 @@ fn get_required_padding(
     (pad_pieces, PaddedPieceSize(sum))
 }
 
-#[instrument]
+#[cfg_attr(feature = "tracing", instrument())]
 fn to_fil_public_replica_infos(
     src: &[SectorInfo],
     typ: ProofType,
@@ -1121,7 +1119,7 @@ fn to_fil_public_replica_infos(
     Ok(replicas)
 }
 
-#[instrument]
+#[cfg_attr(feature = "tracing", instrument())]
 fn verify_seal(vi: &SealVerifyInfo) -> Result<bool> {
     let commr = commcid::cid_to_replica_commitment_v1(&vi.sealed_cid).or_illegal_argument()?;
     let commd = commcid::cid_to_data_commitment_v1(&vi.unsealed_cid).or_illegal_argument()?;
@@ -1148,7 +1146,7 @@ fn verify_seal(vi: &SealVerifyInfo) -> Result<bool> {
     .context("failed to verify seal proof")
 }
 
-#[instrument]
+#[cfg_attr(feature = "tracing", instrument())]
 fn verify_post(verify_info: &WindowPoStVerifyInfo) -> Result<bool> {
     let WindowPoStVerifyInfo {
         ref proofs,
@@ -1180,7 +1178,7 @@ fn verify_post(verify_info: &WindowPoStVerifyInfo) -> Result<bool> {
         .or_illegal_argument()
 }
 
-#[instrument]
+#[cfg_attr(feature = "tracing", instrument())]
 fn verify_aggregate_seals(aggregate: &AggregateSealVerifyProofAndInfos) -> Result<bool> {
     if aggregate.infos.is_empty() {
         return Err(syscall_error!(IllegalArgument; "no seal verify infos").into());
@@ -1246,7 +1244,7 @@ fn verify_aggregate_seals(aggregate: &AggregateSealVerifyProofAndInfos) -> Resul
     .or_illegal_argument()
 }
 
-#[instrument]
+#[cfg_attr(feature = "tracing", instrument())]
 fn verify_replica_update(replica: &ReplicaUpdateInfo) -> Result<bool> {
     let up: proofs::RegisteredUpdateProof =
         replica.update_proof_type.try_into().or_illegal_argument()?;
@@ -1268,7 +1266,7 @@ fn verify_replica_update(replica: &ReplicaUpdateInfo) -> Result<bool> {
     .or_illegal_argument()
 }
 
-#[instrument]
+#[cfg_attr(feature = "tracing", instrument())]
 fn compute_unsealed_sector_cid(
     proof_type: RegisteredSealProof,
     pieces: &[PieceInfo],

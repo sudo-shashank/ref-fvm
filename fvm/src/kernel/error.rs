@@ -9,7 +9,7 @@ use fvm_shared::error::ErrorNumber;
 pub type Result<T> = std::result::Result<T, ExecutionError>;
 
 use fuzzing_tracker::instrument;
-#[cfg(feature="tracing")]
+#[cfg(feature = "tracing")]
 // Injected during build
 #[no_mangle]
 extern "Rust" {
@@ -55,7 +55,7 @@ impl ExecutionError {
     /// - A message that results in a fatal error cannot be included in a block (no receipt).
     /// - A block including a message that results in a fatal error cannot be accepted (messages
     ///   cannot be skipped).
-    #[instrument]
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn is_fatal(&self) -> bool {
         use ExecutionError::*;
         match self {
@@ -66,7 +66,7 @@ impl ExecutionError {
 
     /// Returns true if an actor can catch the error. All errors except fatal and out of gas errors
     /// are recoverable.
-    #[instrument]
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn is_recoverable(&self) -> bool {
         use ExecutionError::*;
         match self {
