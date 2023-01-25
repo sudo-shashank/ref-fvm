@@ -3,12 +3,14 @@
 use std::convert::TryInto;
 use std::rc::Rc;
 
+use fuzzing_tracker::instrument;
 use fvm_ipld_encoding::{CBOR, DAG_CBOR};
 use fvm_shared::IPLD_RAW;
 use thiserror::Error;
 
 use super::{ExecutionError, SyscallError};
 use crate::syscall_error;
+
 #[cfg(feature = "tracing")]
 // Injected during build
 #[no_mangle]

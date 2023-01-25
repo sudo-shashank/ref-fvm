@@ -30,6 +30,14 @@ use crate::{syscall_error, EMPTY_ARR_CID};
 
 pub const EVENTS_AMT_BITWIDTH: u32 = 5;
 
+use fuzzing_tracker::instrument;
+#[cfg(feature = "tracing")]
+// Injected during build
+#[no_mangle]
+extern "Rust" {
+    fn set_custom_probe(line: u64) -> ();
+}
+
 lazy_static::lazy_static! {
     /// Pre-serialized block containing the empty array
     pub static ref EMPTY_ARRAY_BLOCK: Block<Vec<u8>> = {
