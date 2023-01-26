@@ -48,6 +48,7 @@ minstant = "0.1.2"
 # Swap between features "block" and "stmt" for block or statement coverage info
 fuzzing-tracker = { path = "../../../fuzzing_fvm/crates/tracker", features = ['stmt']  }
 
+
 [dev-dependencies]
 pretty_assertions = "1.2.1"
 fvm = { path = ".", features = ["testing"], default-features = false }
@@ -73,4 +74,5 @@ arb = ["arbitrary", "quickcheck"]
 m2-native = []
 instrument-syscalls = []
 tracing = [ ]
+locations = [ "fuzzing-tracker/locations" ]
 hyperspace = []
