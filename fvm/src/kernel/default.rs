@@ -1008,8 +1008,11 @@ where
         }) {
             Ok(v) => v,
             Err(e) => {
-                log::error!("panic when decoding cbor from actor: {:?}", e);
-                Err(syscall_error!(IllegalArgument; "panic when decoding cbor from actor").into())
+                log::error!("panic when decoding event cbor from actor: {:?}", e);
+                Err(
+                    syscall_error!(IllegalArgument; "panic when decoding event cbor from actor")
+                        .into(),
+                )
             }
         }?;
 

@@ -9,6 +9,7 @@ use fvm_shared::address::{Address, Protocol};
 use fvm_shared::crypto::hash::SupportedHashes;
 use fvm_shared::crypto::signature::{Signature, SignatureType, SECP_SIG_LEN};
 use fvm_shared::error::ExitCode;
+use fvm_shared::event::{ActorEvent, Entry, Flags};
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 use serde::de::DeserializeOwned;
@@ -30,6 +31,8 @@ pub enum Method {
     OnVerifySignature,
     /// Try (and fail) to recovery a public key from a signature, using random data.
     OnRecoverSecpPublicKey,
+    /// Emit events variying the number of entries, and with variable lengths for keys and values.
+    OnEvent,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -68,6 +71,18 @@ pub struct OnRecoverSecpPublicKeyParams {
     /// it in just to show on the charts that the time doesn't depend on the input size.
     pub size: usize,
     pub signature: Vec<u8>,
+    pub seed: u64,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct OnEventParams {
+    pub iterations: usize,
+    /// Number of entries in the event.
+    pub entries: usize,
+    /// Length of every key and value in every entry.
+    pub sizes: (usize, usize),
+    /// Flags to apply to all entries.
+    pub flags: Flags,
     pub seed: u64,
 }
 
@@ -112,6 +127,7 @@ fn dispatch(method: Method, params_ptr: u32) -> Result<()> {
         Method::OnBlock => dispatch_to(on_block, params_ptr),
         Method::OnVerifySignature => dispatch_to(on_verify_signature, params_ptr),
         Method::OnRecoverSecpPublicKey => dispatch_to(on_recover_secp_public_key, params_ptr),
+        Method::OnEvent => dispatch_to(on_event, params_ptr),
     }
 }
 
@@ -175,6 +191,28 @@ fn on_verify_signature(p: OnVerifySignatureParams) -> Result<()> {
     for i in 0..p.iterations {
         random_mutations(&mut data, p.seed + i as u64, MUTATION_COUNT);
         fvm_sdk::crypto::verify_signature(&sig, &p.signer, &data)?;
+    }
+
+    Ok(())
+}
+
+fn on_event(p: OnEventParams) -> Result<()> {
+    let mut key = random_bytes(p.sizes.0, p.seed);
+    let mut value = random_bytes(p.sizes.1, p.seed);
+
+    for i in 0..p.iterations {
+        let entries: Vec<Entry> = std::iter::repeat_with(|| {
+            random_mutations(&mut key, p.seed + i as u64, MUTATION_COUNT);
+            random_mutations(&mut value, p.seed + i as u64, MUTATION_COUNT);
+            Entry {
+                flags: p.flags,
+                key: String::from_utf8_lossy(key.as_slice()).to_string(),
+                value: value.clone().into(),
+            }
+        })
+        .take(p.entries)
+        .collect();
+        fvm_sdk::event::emit_event(&ActorEvent::from(entries))?;
     }
 
     Ok(())
