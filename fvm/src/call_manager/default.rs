@@ -5,6 +5,7 @@ use std::rc::Rc;
 use anyhow::{anyhow, Context};
 use cid::Cid;
 use derive_more::{Deref, DerefMut};
+use fvm_ipld_amt::Amt;
 use fvm_ipld_encoding::{to_vec, RawBytes, CBOR};
 use fvm_shared::address::{Address, Payload};
 use fvm_shared::econ::TokenAmount;
@@ -15,12 +16,15 @@ use fvm_shared::{ActorID, MethodNum, METHOD_SEND};
 use num_traits::Zero;
 
 use super::{Backtrace, CallManager, InvocationResult, NO_DATA_BLOCK_ID};
+use crate::blockstore::DiscardBlockstore;
 use crate::call_manager::backtrace::Frame;
 use crate::call_manager::FinishRet;
 use crate::eam_actor::EAM_ACTOR_ID;
 use crate::engine::Engine;
 use crate::gas::{Gas, GasTimer, GasTracker};
-use crate::kernel::{Block, BlockRegistry, ExecutionError, Kernel, Result, SyscallError};
+use crate::kernel::{
+    Block, BlockRegistry, ClassifyResult, ExecutionError, Kernel, Result, SyscallError,
+};
 use crate::machine::limiter::MemoryLimiter;
 use crate::machine::Machine;
 use crate::state_tree::ActorState;
@@ -238,7 +242,7 @@ where
     }
 
     #[cfg_attr(feature="tracing", instrument())]
-    fn finish(mut self) -> (FinishRet, Self::Machine) {
+    fn finish(mut self) -> (Result<FinishRet>, Self::Machine) {
         let InnerDefaultCallManager {
             machine,
             backtrace,
@@ -256,15 +260,23 @@ where
             exec_trace.extend(gas_tracker.drain_trace().map(ExecutionEvent::GasCharge));
         }
 
-        let events = events.finish();
+        let res = events.finish();
+        let Events {
+            events,
+            root: events_root,
+        } = match res {
+            Ok(events) => events,
+            Err(err) => return (Err(err), machine),
+        };
 
         (
-            FinishRet {
+            Ok(FinishRet {
                 gas_used,
                 backtrace,
                 exec_trace,
                 events,
-            },
+                events_root,
+            }),
             machine,
         )
     }
@@ -334,6 +346,14 @@ where
         delegated_address: Option<Address>,
     ) -> Result<()> {
         let start = GasTimer::start();
+
+        if self.machine.builtin_actors().is_placeholder_actor(&code_id) {
+            return Err(syscall_error!(
+                Forbidden,
+                "cannot explicitly construct a placeholder actor"
+            )
+            .into());
+        }
 
         // Check to make sure the actor doesn't exist, or is a placeholder.
         let (actor, is_new) = match self.machine.state_tree().get_actor(actor_id)? {
@@ -757,6 +777,11 @@ pub struct EventsAccumulator {
     read_only_layers: u32,
 }
 
+pub(crate) struct Events {
+    root: Option<Cid>,
+    events: Vec<StampedEvent>,
+}
+
 impl EventsAccumulator {
     #[cfg_attr(feature="tracing", instrument())]
     fn is_read_only(&self) -> bool {
@@ -794,11 +819,40 @@ impl EventsAccumulator {
         Ok(())
     }
 
+<<<<<<< HEAD
     #[cfg_attr(feature="tracing", instrument())]
     fn finish(self) -> Vec<StampedEvent> {
         // Ideally would assert here, but there's risk of poisoning the Machine.
         // Cannot return a Result because the call site expects infallibility.
         // assert!(self.idxs.is_empty());
         self.events
+=======
+    fn finish(self) -> Result<Events> {
+        if !self.idxs.is_empty() {
+            return Err(ExecutionError::Fatal(anyhow!(
+                "bad events accumulator state; expected layer indices to be empty, had {} items",
+                self.idxs.len()
+            )));
+        }
+
+        let root = if !self.events.is_empty() {
+            const EVENTS_AMT_BITWIDTH: u32 = 5;
+            let root = Amt::new_from_iter_with_bit_width(
+                DiscardBlockstore,
+                EVENTS_AMT_BITWIDTH,
+                self.events.iter().cloned(),
+            )
+            .context("failed to construct events AMT")
+            .or_fatal()?;
+            Some(root)
+        } else {
+            None
+        };
+
+        Ok(Events {
+            root,
+            events: self.events,
+        })
+>>>>>>> origin/master
     }
 }
