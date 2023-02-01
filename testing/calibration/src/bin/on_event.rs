@@ -19,7 +19,7 @@ fn main() {
 
     let iterations = 500;
 
-    let mut obs = Vec::new();
+    let (mut validate_obs, mut accept_obs) = (Vec::new(), Vec::new());
 
     let mut te = instantiate_tester();
 
@@ -39,24 +39,25 @@ fn main() {
             let ret = te.execute_or_die(METHOD as u64, &params);
 
             {
-                let mut series = collect_obs(ret.clone(), CHARGE_ACCEPT, &label, *size as usize);
-                //series = eliminate_outliers(series, 0.05, Eliminate::Top);
-                obs.extend(series);
+                let mut series = collect_obs(ret.clone(), CHARGE_VALIDATE, &label, *size as usize);
+                series = eliminate_outliers(series, 0.02, Eliminate::Top);
+                validate_obs.extend(series);
             };
 
             {
-                let mut series = collect_obs(ret.clone(), CHARGE_VALIDATE, &label, *size as usize);
-                //series = eliminate_outliers(series, 0.05, Eliminate::Top);
-                obs.extend(series);
+                let mut series = collect_obs(ret.clone(), CHARGE_ACCEPT, &label, *size as usize);
+                series = eliminate_outliers(series, 0.02, Eliminate::Top);
+                accept_obs.extend(series);
             };
         }
     }
 
-    let regs = obs
-        .group_by(|a, b| a.label == b.label)
-        .map(|g| least_squares(g[0].label.to_owned(), g, 0))
-        .collect::<Vec<_>>();
+    for (obs, name) in vec![(validate_obs, CHARGE_VALIDATE), (accept_obs, CHARGE_ACCEPT)].iter() {
+        let regression = obs
+            .group_by(|a, b| a.label == b.label)
+            .map(|g| least_squares(g[0].label.to_owned(), g, 0))
+            .collect::<Vec<_>>();
 
-    export(CHARGE_VALIDATE, &obs, &regs).unwrap();
-    export(CHARGE_ACCEPT, &obs, &regs).unwrap();
+        export(name, &obs, &regression).unwrap();
+    }
 }

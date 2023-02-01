@@ -1,3 +1,5 @@
+use std::num::Wrapping;
+
 // Copyright 2021-2023 Protocol Labs
 // SPDX-License-Identifier: Apache-2.0, MIT
 use anyhow::{anyhow, Result};
@@ -197,18 +199,15 @@ fn on_verify_signature(p: OnVerifySignatureParams) -> Result<()> {
 }
 
 fn on_event(p: OnEventParams) -> Result<()> {
-    let mut key = random_bytes(p.sizes.0, p.seed);
     let mut value = random_bytes(p.sizes.1, p.seed);
 
     for i in 0..p.iterations {
-        let entries: Vec<Entry> = std::iter::repeat_with(|| {
-            random_mutations(&mut key, p.seed + i as u64, MUTATION_COUNT);
-            random_mutations(&mut value, p.seed + i as u64, MUTATION_COUNT);
-            Entry {
-                flags: p.flags,
-                key: String::from_utf8_lossy(key.as_slice()).to_string(),
-                value: value.clone().into(),
-            }
+        random_mutations(&mut value, p.seed + i as u64, MUTATION_COUNT);
+        let key = random_ascii_string(p.sizes.0, p.seed + p.iterations as u64 + i as u64); // non-overlapping seed
+        let entries: Vec<Entry> = std::iter::repeat_with(|| Entry {
+            flags: p.flags,
+            key: key.clone(),
+            value: value.clone().into(),
         })
         .take(p.entries)
         .collect();
@@ -247,14 +246,22 @@ fn random_mutations(data: &mut Vec<u8>, seed: u64, n: usize) {
     }
 }
 
+/// Generates a random string in the 0x20 - 0x7e ASCII character range
+/// (alphanumeric + symbols, excluding the delete symbol).
+fn random_ascii_string(n: usize, seed: u64) -> String {
+    let bytes = lcg64(seed).map(|x| ((x % 95) + 32) as u8).take(n).collect();
+    String::from_utf8(bytes).unwrap()
+}
+
 /// Knuth's quick and dirty random number generator.
 /// https://en.wikipedia.org/wiki/Linear_congruential_generator
-fn lcg64(mut seed: u64) -> impl Iterator<Item = u64> {
+fn lcg64(initial_seed: u64) -> impl Iterator<Item = u64> {
     let a = 6364136223846793005;
     let c = 1442695040888963407;
+    let mut seed = Wrapping(initial_seed);
     std::iter::repeat_with(move || {
-        seed = a * seed + c;
-        seed
+        seed = Wrapping(a) * seed + Wrapping(c);
+        seed.0
     })
 }
 

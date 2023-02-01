@@ -88,6 +88,7 @@ lazy_static! {
 /// to model time in terms of some variables.
 #[derive(Serialize)]
 pub struct Obs {
+    pub charge: String,
     pub label: String,
     pub elapsed_nanos: u128,
     pub variables: Vec<usize>,
@@ -231,6 +232,7 @@ pub fn collect_obs(ret: ApplyRet, name: &str, label: &str, size: usize) -> Vec<O
         .iter()
         .filter_map(|t| match t {
             ExecutionEvent::GasCharge(charge) if charge.name == name => Some(Obs {
+                charge: charge.name.to_string(),
                 label: label.to_owned(),
                 elapsed_nanos: charge.elapsed.get().unwrap().as_nanos(),
                 variables: vec![size],
