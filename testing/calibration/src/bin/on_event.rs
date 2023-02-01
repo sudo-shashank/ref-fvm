@@ -14,10 +14,10 @@ const CHARGE_ACCEPT: &str = "OnActorEventAccept";
 const METHOD: Method = Method::OnEvent;
 
 fn main() {
-    let entry_counts: Vec<_> = (0u32..=8).map(|n| u64::pow(2, n)).collect(); // up to 256
-    let sizes: Vec<_> = (0u32..=12).map(|n| u64::pow(2, n)).collect(); // up to 4 KiB
+    let entry_counts: Vec<_> = (0u32..=4).map(|n| u64::pow(2, n)).collect(); // up to 16 entries
+    let sizes: Vec<_> = (0u32..=8).map(|n| u64::pow(2, n)).collect(); // up to 256 bytes
 
-    let iterations = 100;
+    let iterations = 500;
 
     let mut obs = Vec::new();
 
@@ -40,13 +40,13 @@ fn main() {
 
             {
                 let mut series = collect_obs(ret.clone(), CHARGE_ACCEPT, &label, *size as usize);
-                series = eliminate_outliers(series, 0.02, Eliminate::Top);
+                //series = eliminate_outliers(series, 0.05, Eliminate::Top);
                 obs.extend(series);
             };
 
             {
                 let mut series = collect_obs(ret.clone(), CHARGE_VALIDATE, &label, *size as usize);
-                series = eliminate_outliers(series, 0.02, Eliminate::Top);
+                //series = eliminate_outliers(series, 0.05, Eliminate::Top);
                 obs.extend(series);
             };
         }
