@@ -282,8 +282,8 @@ lazy_static! {
 
         // TODO::PARAM
         event_accept_per_index_element: ScalingCost {
-            flat: Gas::from_milligas(50000),
-            scale: Gas::from_milligas(500000),
+            flat: Zero::zero(),
+            scale: Zero::zero(),
         }
 
     };
