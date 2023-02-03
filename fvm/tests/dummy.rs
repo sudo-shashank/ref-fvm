@@ -12,7 +12,7 @@ use fvm::externs::{Chain, Consensus, Externs, Rand};
 use fvm::gas::{Gas, GasCharge, GasTimer, GasTracker};
 use fvm::machine::limiter::MemoryLimiter;
 use fvm::machine::{Machine, MachineContext, Manifest, NetworkConfig};
-use fvm::state_tree::{ActorState, StateTree};
+use fvm::state_tree::StateTree;
 use fvm::{kernel, Kernel};
 use fvm_ipld_blockstore::{Blockstore, MemoryBlockstore};
 use fvm_ipld_encoding::{CborStore, DAG_CBOR};
@@ -174,23 +174,6 @@ impl Machine for DummyMachine {
         &mut self.state_tree
     }
 
-    fn create_actor(
-        &mut self,
-        _addr: &Address,
-        _act: ActorState,
-    ) -> kernel::Result<fvm_shared::ActorID> {
-        todo!()
-    }
-
-    fn transfer(
-        &mut self,
-        _from: fvm_shared::ActorID,
-        _to: fvm_shared::ActorID,
-        _value: &fvm_shared::econ::TokenAmount,
-    ) -> kernel::Result<()> {
-        todo!()
-    }
-
     fn into_store(self) -> Self::Blockstore {
         self.state_tree.into_store()
     }
@@ -221,6 +204,8 @@ pub struct TestData {
     pub charge_gas_calls: usize,
 }
 
+const BLOCK_GAS_LIMIT: Gas = Gas::new(10_000_000_000);
+
 impl DummyCallManager {
     pub fn new_stub() -> (Self, Rc<RefCell<TestData>>) {
         let rc = Rc::new(RefCell::new(TestData {
@@ -230,7 +215,7 @@ impl DummyCallManager {
         (
             Self {
                 machine: DummyMachine::new_stub().unwrap(),
-                gas_tracker: GasTracker::new(Gas::new(i64::MAX), Gas::new(0), false),
+                gas_tracker: GasTracker::new(BLOCK_GAS_LIMIT, Gas::new(0), false),
                 origin: 0,
                 nonce: 0,
                 test_data: rc,
@@ -269,9 +254,11 @@ impl CallManager for DummyCallManager {
     fn new(
         machine: Self::Machine,
         _engine: Engine,
-        _gas_limit: i64,
+        _gas_limit: u64,
         origin: ActorID,
         origin_address: Address,
+        _receiver: Option<ActorID>,
+        _receiver_address: Address,
         nonce: u64,
         gas_premium: TokenAmount,
     ) -> Self {
@@ -281,7 +268,7 @@ impl CallManager for DummyCallManager {
         let limits = machine.new_limiter();
         Self {
             machine,
-            gas_tracker: GasTracker::new(Gas::new(i64::MAX), Gas::new(0), false),
+            gas_tracker: GasTracker::new(BLOCK_GAS_LIMIT, Gas::new(0), false),
             gas_premium,
             origin,
             origin_address,
@@ -299,6 +286,7 @@ impl CallManager for DummyCallManager {
         _params: Option<kernel::Block>,
         _value: &fvm_shared::econ::TokenAmount,
         _gas_limit: Option<Gas>,
+        _read_only: bool,
     ) -> kernel::Result<InvocationResult> {
         // Ok(InvocationResult::Return(None))
         todo!()
@@ -306,7 +294,6 @@ impl CallManager for DummyCallManager {
 
     fn with_transaction(
         &mut self,
-        _read_only: bool,
         _f: impl FnOnce(&mut Self) -> kernel::Result<InvocationResult>,
     ) -> kernel::Result<InvocationResult> {
         // Ok(InvocationResult::Return(None))
@@ -384,6 +371,37 @@ impl CallManager for DummyCallManager {
     }
 
     fn append_event(&mut self, _evt: StampedEvent) {
+        todo!()
+    }
+
+    fn resolve_address(&self, address: &Address) -> fvm::kernel::Result<Option<ActorID>> {
+        self.machine.state_tree().lookup_id(address)
+    }
+
+    fn get_actor(&self, id: ActorID) -> fvm::kernel::Result<Option<fvm::state_tree::ActorState>> {
+        self.machine.state_tree().get_actor(id)
+    }
+
+    fn set_actor(
+        &mut self,
+        id: ActorID,
+        state: fvm::state_tree::ActorState,
+    ) -> fvm::kernel::Result<()> {
+        self.machine.state_tree_mut().set_actor(id, state);
+        Ok(())
+    }
+
+    fn delete_actor(&mut self, id: ActorID) -> fvm::kernel::Result<()> {
+        self.machine.state_tree_mut().delete_actor(id);
+        Ok(())
+    }
+
+    fn transfer(
+        &mut self,
+        _from: ActorID,
+        _to: ActorID,
+        _value: &TokenAmount,
+    ) -> fvm::kernel::Result<()> {
         todo!()
     }
 }

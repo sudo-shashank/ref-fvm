@@ -39,13 +39,13 @@ fn main() {
             let ret = te.execute_or_die(METHOD as u64, &params);
 
             {
-                let mut series = collect_obs(ret.clone(), CHARGE_VALIDATE, &label, *size as usize);
+                let mut series = collect_obs(&ret, CHARGE_VALIDATE, &label, *size as usize);
                 series = eliminate_outliers(series, 0.02, Eliminate::Top);
                 validate_obs.extend(series);
             };
 
             {
-                let mut series = collect_obs(ret.clone(), CHARGE_ACCEPT, &label, *size as usize);
+                let mut series = collect_obs(&ret, CHARGE_ACCEPT, &label, *size as usize);
                 series = eliminate_outliers(series, 0.02, Eliminate::Top);
                 accept_obs.extend(series);
             };
