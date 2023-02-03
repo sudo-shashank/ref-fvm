@@ -4,11 +4,18 @@ use std::cell::RefCell;
 use std::iter;
 
 use anyhow::Context;
+use fuzzing_tracker::instrument;
 use fvm_shared::address::{Address, Protocol};
 use fvm_shared::ActorID;
 
 use crate::history_map::HistoryMap;
 use crate::kernel::{ClassifyResult, Result};
+#[cfg(feature = "tracing")]
+// Injected during build
+#[no_mangle]
+extern "Rust" {
+    fn set_custom_probe(line: u64) -> ();
+}
 
 struct StateAccessLayer {
     addresses_height: usize,
@@ -29,6 +36,7 @@ pub struct StateAccessTracker {
 
 impl StateAccessTracker {
     /// Create a new state access tracker.
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn new(preload_actors: &[ActorID]) -> Self {
         Self {
             actors: RefCell::new(
@@ -44,6 +52,7 @@ impl StateAccessTracker {
     }
 
     /// Begin a transaction.
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn begin_transaction(&mut self) {
         self.layers.push(StateAccessLayer {
             addresses_height: self.addresses.borrow().history_len(),
@@ -53,6 +62,7 @@ impl StateAccessTracker {
 
     /// End a transaction. If revert is true, the `StateAccessTracker` will forget all accesses from
     /// within the transaction and will re-charge for them in the future.
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn end_transaction(&mut self, revert: bool) -> Result<()> {
         let layer = self
             .layers
@@ -67,11 +77,13 @@ impl StateAccessTracker {
     }
 
     /// Returns the highest state-access type that has been charged for this actor.
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn get_actor_access_state(&self, actor: ActorID) -> Option<ActorAccessState> {
         self.actors.borrow().get(&actor).copied()
     }
 
     /// Record that an actor's state was successfully read so that we don't charge for it again.
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn record_actor_read(&self, actor: ActorID) {
         let mut actors = self.actors.borrow_mut();
         if actors.get(&actor).is_none() {
@@ -80,6 +92,7 @@ impl StateAccessTracker {
     }
 
     /// Record that an actor's state was successfully updated so that we don't charge for it again.
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn record_actor_update(&self, actor: ActorID) {
         self.actors
             .borrow_mut()
@@ -87,11 +100,13 @@ impl StateAccessTracker {
     }
 
     /// Returns true if the address lookup has already been charged.
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn get_address_lookup_state(&self, addr: &Address) -> bool {
         addr.protocol() == Protocol::ID || self.addresses.borrow_mut().get(addr).is_some()
     }
 
     /// Record that an actor's state was successfully resolved so that we don't charge for it again.
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn record_lookup_address(&self, addr: &Address) {
         if addr.protocol() == Protocol::ID {
             return;
