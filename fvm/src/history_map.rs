@@ -5,6 +5,14 @@ use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::hash::Hash;
 
+use fuzzing_tracker::instrument;
+#[cfg(feature = "tracing")]
+// Injected during build
+#[no_mangle]
+extern "Rust" {
+    fn set_custom_probe(line: u64) -> ();
+}
+
 /// A map with an "undo" history. All changes to this map are recorded in the history and can be "reverted" by calling `rollback`. Specifically:
 ///
 /// 1. The user can call `history_len` to record the current history length.
