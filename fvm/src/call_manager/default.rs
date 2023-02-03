@@ -460,7 +460,7 @@ where
         }
         Ok(id)
     }
-
+    #[cfg_attr(feature = "tracing", instrument())]
     fn get_actor(&self, id: ActorID) -> Result<Option<ActorState>> {
         let access = self.state_access_tracker.get_actor_access_state(id);
         if access < Some(ActorAccessState::Read) {
@@ -472,7 +472,7 @@ where
         self.state_access_tracker.record_actor_read(id);
         Ok(actor)
     }
-
+    #[cfg_attr(feature = "tracing", instrument())]
     fn set_actor(&mut self, id: ActorID, state: ActorState) -> Result<()> {
         let access = self.state_access_tracker.get_actor_access_state(id);
         if access < Some(ActorAccessState::Read) {
@@ -489,7 +489,7 @@ where
         self.state_access_tracker.record_actor_update(id);
         Ok(())
     }
-
+    #[cfg_attr(feature = "tracing", instrument())]
     fn delete_actor(&mut self, id: ActorID) -> Result<()> {
         let access = self.state_access_tracker.get_actor_access_state(id);
         if access < Some(ActorAccessState::Read) {
@@ -506,7 +506,7 @@ where
         self.state_access_tracker.record_actor_update(id);
         Ok(())
     }
-
+    #[cfg_attr(feature = "tracing", instrument())]
     fn transfer(&mut self, from: ActorID, to: ActorID, value: &TokenAmount) -> Result<()> {
         if value.is_negative() {
             return Err(syscall_error!(IllegalArgument;
@@ -562,6 +562,7 @@ where
     }
 
     /// Helper method to create an uninitialized actor due to a send.
+    #[cfg_attr(feature = "tracing", instrument())]
     fn create_actor_from_send(&mut self, addr: &Address, act: ActorState) -> Result<ActorID> {
         // This will charge for the address assignment and the actor storage, but not the actor
         // lookup/update (charged below in `set_actor`).
@@ -579,6 +580,7 @@ where
     ///
     /// 1. Creates the actor.
     /// 2. Initializes it by calling the constructor.
+    #[cfg_attr(feature = "tracing", instrument())]
     fn create_account_actor_from_send<K>(&mut self, addr: &Address) -> Result<ActorID>
     where
         K: Kernel<CallManager = Self>,
@@ -622,6 +624,7 @@ where
 
     /// Helper method to create a placeholder actor due to a send. This method does not execute any
     /// constructors.
+    #[cfg_attr(feature = "tracing", instrument())]
     fn create_placeholder_actor_from_send<K>(&mut self, addr: &Address) -> Result<ActorID>
     where
         K: Kernel<CallManager = Self>,
@@ -948,14 +951,15 @@ pub(crate) struct Events {
 }
 
 impl EventsAccumulator {
+    #[cfg_attr(feature = "tracing", instrument())]
     fn append_event(&mut self, evt: StampedEvent) {
         self.events.push(evt)
     }
-
+    #[cfg_attr(feature = "tracing", instrument())]
     fn begin_transaction(&mut self) {
         self.idxs.push(self.events.len());
     }
-
+    #[cfg_attr(feature = "tracing", instrument())]
     fn end_transaction(&mut self, revert: bool) -> Result<()> {
         let idx = self.idxs.pop().ok_or_else(|| {
             ExecutionError::Fatal(anyhow!(

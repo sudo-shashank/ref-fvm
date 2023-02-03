@@ -6,6 +6,7 @@ use std::cell::RefCell;
 
 use anyhow::{anyhow, Context as _};
 use cid::{multihash, Cid};
+use fuzzing_tracker::instrument;
 use fvm_ipld_blockstore::Blockstore;
 use fvm_ipld_encoding::tuple::*;
 use fvm_ipld_encoding::CborStore;
@@ -22,14 +23,12 @@ use crate::history_map::HistoryMap;
 use crate::init_actor::State as InitActorState;
 use crate::kernel::{ClassifyResult, ExecutionError, Result};
 use crate::{syscall_error, EMPTY_ARR_CID};
-use fuzzing_tracker::instrument;
-#[cfg(feature="tracing")]
+#[cfg(feature = "tracing")]
 // Injected during build
 #[no_mangle]
 extern "Rust" {
     fn set_custom_probe(line: u64) -> ();
 }
-
 
 /// State tree implementation using hamt. This structure is not threadsafe and should only be used
 /// in sync contexts.
@@ -69,7 +68,7 @@ impl<S> StateTree<S>
 where
     S: Blockstore,
 {
-    #[cfg_attr(feature="tracing", instrument())]
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn new(store: S, version: StateTreeVersion) -> Result<Self> {
         let info = match version {
             StateTreeVersion::V0
@@ -104,7 +103,7 @@ where
     }
 
     /// Constructor for a hamt state tree given an IPLD store
-    #[cfg_attr(feature="tracing", instrument())]
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn new_from_root(store: S, c: &Cid) -> Result<Self> {
         // Try to load state root, if versioned
         let (version, info, actors) = match store.get_cbor(c) {
@@ -156,14 +155,14 @@ where
     }
 
     /// Retrieve store reference to modify db.
-    #[cfg_attr(feature="tracing", instrument())]
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn store(&self) -> &S {
         self.hamt.store()
     }
 
     /// Get actor state from an address. Will be resolved to ID address.
     #[cfg(feature = "testing")]
-    #[cfg_attr(feature="tracing", instrument())]
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn get_actor_by_address(&self, addr: &Address) -> Result<Option<ActorState>> {
         let id = match self.lookup_id(addr)? {
             Some(id) => id,
@@ -173,7 +172,7 @@ where
     }
 
     /// Get actor state from an actor ID.
-    #[cfg_attr(feature="tracing", instrument())]
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn get_actor(&self, id: ActorID) -> Result<Option<ActorState>> {
         self.actor_cache
             .borrow_mut()
@@ -205,7 +204,7 @@ where
     }
 
     /// Get an ID address from any Address
-    #[cfg_attr(feature="tracing", instrument())]
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn lookup_id(&self, addr: &Address) -> Result<Option<ActorID>> {
         if let &Payload::ID(id) = addr.payload() {
             return Ok(Some(id));
@@ -228,6 +227,7 @@ where
     }
 
     /// Delete actor identified by the supplied ID.
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn delete_actor(&mut self, id: ActorID) {
         // Record that we've deleted the actor.
         self.actor_cache.borrow_mut().insert(
@@ -241,7 +241,7 @@ where
 
     /// Mutate and set actor state identified by the supplied ID. Returns a fatal error if the actor
     /// doesn't exist.
-    #[cfg_attr(feature="tracing", instrument())]
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn mutate_actor<F>(&mut self, id: ActorID, mutate: F) -> Result<()>
     where
         F: FnOnce(&mut ActorState) -> Result<()>,
@@ -257,7 +257,7 @@ where
 
     /// Try to mutate the actor state identified by the supplied ID, returning false if the actor
     /// doesn't exist.
-    #[cfg_attr(feature="tracing", instrument())]
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn maybe_mutate_actor_id<F>(&mut self, id: ActorID, mutate: F) -> Result<bool>
     where
         F: FnOnce(&mut ActorState) -> Result<()>,
@@ -276,7 +276,7 @@ where
     }
 
     /// Register a new address through the init actor.
-    #[cfg_attr(feature="tracing", instrument())]
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn register_new_address(&mut self, addr: &Address) -> Result<ActorID> {
         let (mut state, mut actor) = InitActorState::load(self)?;
 
@@ -295,6 +295,7 @@ where
     }
 
     /// Begin a new state transaction. Transactions stack.
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn begin_transaction(&mut self) {
         self.layers.push(StateSnapLayer {
             actor_cache_height: self.actor_cache.get_mut().history_len(),
@@ -303,7 +304,7 @@ where
     }
 
     /// End a transaction, reverting if requested.
-    #[cfg_attr(feature="tracing", instrument())]
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn end_transaction(&mut self, revert: bool) -> Result<()> {
         let layer = self
             .layers
@@ -327,13 +328,13 @@ where
     }
 
     /// Returns true if we're inside of a transaction.
-    #[cfg_attr(feature="tracing", instrument())]
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn in_transaction(&self) -> bool {
         !self.layers.is_empty()
     }
 
     /// Flush state tree and return Cid root.
-    #[cfg_attr(feature="tracing", instrument())]
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn flush(&mut self) -> Result<Cid> {
         if self.in_transaction() {
             return Err(ExecutionError::Fatal(anyhow!(
@@ -381,12 +382,12 @@ where
     }
 
     /// Consumes this StateTree and returns the Blockstore it owns via the HAMT.
-    #[cfg_attr(feature="tracing", instrument())]
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn into_store(self) -> S {
         self.hamt.into_store()
     }
 
-    #[cfg_attr(feature="tracing", instrument())]
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn for_each<F>(&self, mut f: F) -> anyhow::Result<()>
     where
         F: FnMut(Address, &ActorState) -> anyhow::Result<()>,
@@ -418,7 +419,7 @@ pub struct ActorState {
 
 impl ActorState {
     /// Constructor for actor state
-    #[cfg_attr(feature="tracing", instrument())]
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn new(
         code: Cid,
         state: Cid,
@@ -436,7 +437,7 @@ impl ActorState {
     }
 
     /// Construct a new empty actor with the specified code.
-    #[cfg_attr(feature="tracing", instrument())]
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn new_empty(code: Cid, delegated_address: Option<Address>) -> Self {
         ActorState {
             code,
@@ -448,7 +449,7 @@ impl ActorState {
     }
 
     /// Safely deducts funds from an Actor
-    #[cfg_attr(feature="tracing", instrument())]
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn deduct_funds(&mut self, amt: &TokenAmount) -> Result<()> {
         if &self.balance < amt {
             return Err(
@@ -460,7 +461,7 @@ impl ActorState {
         Ok(())
     }
     /// Deposits funds to an Actor
-    #[cfg_attr(feature="tracing", instrument())]
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn deposit_funds(&mut self, amt: &TokenAmount) {
         self.balance += amt;
     }
@@ -507,7 +508,7 @@ pub mod json {
             wrapper.0
         }
     }
-
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn serialize<S>(m: &ActorState, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -532,6 +533,7 @@ pub mod json {
         .serialize(serializer)
     }
 
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn deserialize<'de, D>(deserializer: D) -> Result<ActorState, D::Error>
     where
         D: Deserializer<'de>,
@@ -590,6 +592,7 @@ mod tests {
         );
     }
 
+    // #[cfg_attr(feature = "tracing", instrument())]
     fn empty_cid() -> Cid {
         Cid::new_v1(DAG_CBOR, Multihash::wrap(IDENTITY_HASH, &[]).unwrap())
     }

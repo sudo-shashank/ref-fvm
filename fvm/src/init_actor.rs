@@ -28,15 +28,15 @@ use crate::state_tree::{ActorState, StateTree};
 
 pub const INIT_ACTOR_ID: ActorID = 1;
 
-use crate::kernel::{ClassifyResult, Result};
 use fuzzing_tracker::instrument;
-#[cfg(feature="tracing")]
+
+use crate::kernel::{ClassifyResult, Result};
+#[cfg(feature = "tracing")]
 // Injected during build
 #[no_mangle]
 extern "Rust" {
     fn set_custom_probe(line: u64) -> ();
 }
-
 
 #[derive(Serialize_tuple, Deserialize_tuple, Debug)]
 pub struct State {
@@ -51,7 +51,7 @@ impl State {
     // ideally we would just #[cfg(test)] this, but it is used by non test-gated code in
     // integration/tester.
     #[allow(unused)]
-    #[cfg_attr(feature="tracing", instrument())]
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn new_test<B: Blockstore>(store: &B) -> Self {
         #[cfg(feature = "m2-native")]
         use cid::multihash::Code::Blake2b256;
@@ -75,6 +75,7 @@ impl State {
     }
 
     /// Loads the init actor state from the supplied state tree.
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn load<B>(state_tree: &StateTree<B>) -> Result<(Self, ActorState)>
     where
         B: Blockstore,
@@ -96,6 +97,7 @@ impl State {
 
     /// Allocates a new ID address and stores a mapping of the argument address to it.
     /// Returns the newly-allocated address.
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn map_address_to_new_id<B>(&mut self, store: B, addr: &Address) -> Result<ActorID>
     where
         B: Blockstore,
@@ -123,6 +125,7 @@ impl State {
     /// * Ok and None if the address was not an ID address, and no mapping was
     ///   found during resolution.
     /// * Err, if state was inconsistent.
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn resolve_address<B>(&self, store: B, addr: &Address) -> Result<Option<u64>>
     where
         B: Blockstore,

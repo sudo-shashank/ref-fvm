@@ -41,6 +41,7 @@ where
     V: Eq,
 {
     /// Insert a k/v pair into the map, recording the previous value in the history if it differs.
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn insert(&mut self, k: K, v: V) {
         match self.map.entry(k) {
             // Entry doesn't exist, insert it and record that nothing was there.
@@ -58,6 +59,7 @@ where
     }
 
     /// Lookup a value in the map given a key.
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn get<Q>(&self, k: &Q) -> Option<&V>
     where
         K: Borrow<Q>,
@@ -68,6 +70,7 @@ where
 
     /// Looks up a value in the map given a key, or initializes the entry with the provided
     /// function. Any modifications to the map are recorded in the history.
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn get_or_try_insert_with<F, E>(&mut self, k: K, f: F) -> std::result::Result<&V, E>
     where
         F: FnOnce() -> std::result::Result<V, E>,
@@ -83,6 +86,7 @@ where
     }
 
     /// Rollback to the specified point in history.
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn rollback(&mut self, height: usize) {
         if self.history.len() <= height {
             return;
@@ -96,16 +100,19 @@ where
     }
 
     /// Returns the current history length.
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn history_len(&self) -> usize {
         self.history.len()
     }
 
     /// Discards all undo history.
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn discard_history(&mut self) {
         self.history.clear();
     }
 
     /// Iterate mutably over the current map.
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn iter_mut(&mut self) -> impl Iterator<Item = (&K, &mut V)> {
         self.map.iter_mut()
     }
