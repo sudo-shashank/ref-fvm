@@ -65,6 +65,7 @@ pub struct DefaultKernel<C> {
     actor_id: ActorID,
     method: MethodNum,
     value_received: TokenAmount,
+    read_only: bool,
 
     /// The call manager for this call stack. If this kernel calls another actor, it will
     /// temporarily "give" the call manager to the other kernel before re-attaching it.
@@ -99,6 +100,7 @@ where
         actor_id: ActorID,
         method: MethodNum,
         value_received: TokenAmount,
+        read_only: bool,
     ) -> Self {
         DefaultKernel {
             call_manager: mgr,
@@ -107,6 +109,7 @@ where
             actor_id,
             method,
             value_received,
+            read_only,
         }
     }
 
@@ -123,30 +126,7 @@ where
     /// Returns `Some(actor_state)` or `None` if this actor has been deleted.
     #[cfg_attr(feature = "tracing", instrument())]
     fn get_self(&self) -> Result<Option<ActorState>> {
-        self.call_manager
-            .state_tree()
-            .get_actor(self.actor_id)
-            .or_fatal()
-            .context("error when finding current actor")
-    }
-
-    /// Mutates this actor's state, returning a syscall error if this actor has been deleted.
-    #[cfg_attr(feature = "tracing", instrument())]
-    fn mutate_self<F>(&mut self, mutate: F) -> Result<()>
-    where
-        F: FnOnce(&mut ActorState) -> Result<()>,
-    {
-        self.call_manager
-            .state_tree_mut()
-            .maybe_mutate_actor_id(self.actor_id, mutate)
-            .context("failed to mutate self")
-            .and_then(|found| {
-                if found {
-                    Ok(())
-                } else {
-                    Err(syscall_error!(IllegalOperation; "actor deleted").into())
-                }
-            })
+        self.call_manager.get_actor(self.actor_id)
     }
 }
 
@@ -156,13 +136,9 @@ where
 {
     #[cfg_attr(feature = "tracing", instrument())]
     fn root(&self) -> Result<Cid> {
-        let t = self
-            .call_manager
-            .charge_gas(self.call_manager.price_list().on_root())?;
-
         // This can fail during normal operations if the actor has been deleted.
-        let cid = t
-            .record(self.get_self())?
+        let cid = self
+            .get_self()?
             .context("state root requested after actor deletion")
             .or_error(ErrorNumber::IllegalOperation)?
             .state;
@@ -172,21 +148,25 @@ where
 
     #[cfg_attr(feature = "tracing", instrument())]
     fn set_root(&mut self, new: Cid) -> Result<()> {
-        let t = self
+        if self.read_only {
+            return Err(
+                syscall_error!(ReadOnly; "cannot update the state-root while read-only").into(),
+            );
+        }
+        let mut state = self
             .call_manager
-            .charge_gas(self.call_manager.price_list().on_set_root())?;
-
-        t.record(self.mutate_self(|actor_state| {
-            actor_state.state = new;
-            Ok(())
-        }))
+            .get_actor(self.actor_id)?
+            .ok_or_else(|| syscall_error!(IllegalOperation; "actor deleted"))?;
+        state.state = new;
+        self.call_manager.set_actor(self.actor_id, state)?;
+        Ok(())
     }
 
     #[cfg_attr(feature = "tracing", instrument())]
     fn current_balance(&self) -> Result<TokenAmount> {
         let t = self
             .call_manager
-            .charge_gas(self.call_manager.price_list().on_current_balance())?;
+            .charge_gas(self.call_manager.price_list().on_self_balance())?;
 
         // If the actor doesn't exist, it has zero balance.
         t.record(Ok(self.get_self()?.map(|a| a.balance).unwrap_or_default()))
@@ -194,6 +174,10 @@ where
 
     #[cfg_attr(feature = "tracing", instrument())]
     fn self_destruct(&mut self, beneficiary: &Address) -> Result<()> {
+        if self.read_only {
+            return Err(syscall_error!(ReadOnly; "cannot self-destruct when read-only").into());
+        }
+
         // Idempotentcy: If the actor doesn't exist, this won't actually do anything. The current
         // balance will be zero, and `delete_actor_id` will be a no-op.
         let t = self
@@ -214,16 +198,11 @@ where
 
             // Transfer the entirety of funds to beneficiary.
             self.call_manager
-                .machine_mut()
                 .transfer(self.actor_id, beneficiary_id, &balance)?;
         }
 
         // Delete the executing actor
-        t.record(
-            self.call_manager
-                .state_tree_mut()
-                .delete_actor(self.actor_id),
-        )
+        t.record(self.call_manager.delete_actor(self.actor_id))
     }
 }
 
@@ -383,7 +362,7 @@ where
                 .try_into()
                 .or_fatal()
                 .context("invalid gas premium")?,
-            flags: if self.call_manager.state_tree().is_read_only() {
+            flags: if self.read_only {
                 ContextFlags::READ_ONLY
             } else {
                 ContextFlags::empty()
@@ -410,6 +389,11 @@ where
         flags: SendFlags,
     ) -> Result<SendResult> {
         let from = self.actor_id;
+        let read_only = self.read_only || flags.read_only();
+
+        if read_only && !value.is_zero() {
+            return Err(syscall_error!(ReadOnly; "cannot transfer value when read-only").into());
+        }
 
         // Load parameters.
         let params = if params_id == NO_DATA_BLOCK_ID {
@@ -424,11 +408,11 @@ where
         }
 
         // Send.
-        let result = self
-            .call_manager
-            .with_transaction(flags.read_only(), |cm| {
-                cm.send::<Self>(from, *recipient, method, params, value, gas_limit)
-            })?;
+        let result = self.call_manager.with_transaction(|cm| {
+            cm.send::<Self>(
+                from, *recipient, method, params, value, gas_limit, read_only,
+            )
+        })?;
 
         // Store result and return.
         Ok(match result {
@@ -834,8 +818,7 @@ where
 
         t.record(Ok(self
             .call_manager
-            .state_tree()
-            .lookup_id(address)?
+            .resolve_address(address)?
             .ok_or_else(|| syscall_error!(NotFound; "actor not found"))?))
     }
 
@@ -847,10 +830,7 @@ where
 
         t.record(Ok(self
             .call_manager
-            .state_tree()
-            .get_actor(id)
-            .context("failed to lookup actor to get code CID")
-            .or_fatal()?
+            .get_actor(id)?
             .ok_or_else(|| syscall_error!(NotFound; "actor not found"))?
             .code))
     }
@@ -880,6 +860,12 @@ where
                 self.actor_id
             )
             .into());
+        }
+
+        if self.read_only {
+            return Err(
+                syscall_error!(ReadOnly, "create_actor cannot be called while read-only").into(),
+            );
         }
 
         self.call_manager
@@ -943,14 +929,9 @@ where
             .call_manager
             .charge_gas(self.call_manager.price_list().on_balance_of())?;
 
-        t.record(
-            self.call_manager
-                .state_tree()
-                .get_actor(actor_id)?
-                .context("actor not found")
-                .or_error(ErrorNumber::NotFound)
-                .map(|a| a.balance),
-        )
+        Ok(t.record(self.call_manager.get_actor(actor_id))?
+            .ok_or_else(|| syscall_error!(NotFound; "actor not found"))?
+            .balance)
     }
 
     #[cfg_attr(feature = "tracing", instrument())]
@@ -959,12 +940,9 @@ where
             .call_manager
             .charge_gas(self.call_manager.price_list().on_lookup_delegated_address())?;
 
-        let address = t
-            .record(self.call_manager.state_tree().get_actor(actor_id))?
+        Ok(t.record(self.call_manager.get_actor(actor_id))?
             .ok_or_else(|| syscall_error!(NotFound; "actor not found"))?
-            .delegated_address;
-
-        Ok(address)
+            .delegated_address)
     }
 }
 
@@ -1052,6 +1030,9 @@ where
 {
     #[cfg_attr(feature = "tracing", instrument())]
     fn emit_event(&mut self, raw_evt: &[u8]) -> Result<()> {
+        if self.read_only {
+            return Err(syscall_error!(ReadOnly; "cannot emit events while read-only").into());
+        }
         let len = raw_evt.len() as usize;
         let t = self
             .call_manager
