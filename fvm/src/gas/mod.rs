@@ -28,7 +28,6 @@ extern "Rust" {
     fn set_custom_probe(line: u64) -> ();
 }
 
-pub const MILLIGAS_PRECISION: i64 = 1000;
 pub const MILLIGAS_PRECISION: u64 = 1000;
 
 /// A typesafe representation of gas (internally stored as milligas).
