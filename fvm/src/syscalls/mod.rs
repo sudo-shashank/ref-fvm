@@ -1,5 +1,15 @@
 // Copyright 2021-2023 Protocol Labs
 // SPDX-License-Identifier: Apache-2.0, MIT
+use fuzzing_tracker::instrument;
+#[cfg(feature = "tracing")]
+// Injected during build
+#[no_mangle]
+extern "Rust" {
+    fn set_custom_probe(line: u64) -> ();
+}
+
+// Copyright 2021-2023 Protocol Labs
+// SPDX-License-Identifier: Apache-2.0, MIT
 use anyhow::{anyhow, Context as _};
 use num_traits::Zero;
 use wasmtime::{AsContextMut, ExternType, Global, Linker, Memory, Module, Val};
@@ -12,33 +22,22 @@ use crate::Kernel;
 
 pub(crate) mod error;
 
-use fuzzing_tracker::instrument;
-#[cfg(feature="tracing")]
-// Injected during build
-#[no_mangle]
-extern "Rust" {
-    fn set_custom_probe(line: u64) -> ();
-}
-
-pub mod actor;
-pub mod bind;
-pub mod context;
-pub mod crypto;
-pub mod debug;
-pub mod event;
-pub mod gas;
-pub mod ipld;
-pub mod network;
-pub mod rand;
-pub mod send;
-pub mod sself;
-pub mod vm;
+mod actor;
+mod bind;
+mod context;
+mod crypto;
+mod debug;
+mod event;
+mod gas;
+mod ipld;
+mod network;
+mod rand;
+mod send;
+mod sself;
+mod vm;
 
 pub(self) use context::Context;
 
-extern "Rust" {
-    fn set_gas_spent(gas: i64) -> ();
-}
 /// Invocation data attached to a wasm "store" and available to the syscall binding.
 pub struct InvocationData<K> {
     /// The kernel on which this actor is being executed.
@@ -70,7 +69,7 @@ pub struct InvocationData<K> {
 
 /// Updates the global available gas in the Wasm module after a syscall, to account for any
 /// gas consumption that happened on the host side.
-#[cfg_attr(feature="tracing", instrument())]
+#[cfg_attr(feature = "tracing", instrument())]
 pub fn update_gas_available(
     ctx: &mut impl AsContextMut<Data = InvocationData<impl Kernel>>,
 ) -> Result<(), Abort> {
@@ -101,7 +100,7 @@ pub fn update_gas_available(
 }
 
 /// Updates the FVM-side gas tracker with newly accrued execution gas charges.
-#[cfg_attr(feature="tracing", instrument())]
+#[cfg_attr(feature = "tracing", instrument())]
 pub fn charge_for_exec<K: Kernel>(
     ctx: &mut impl AsContextMut<Data = InvocationData<K>>,
 ) -> Result<(), Abort> {
@@ -149,9 +148,6 @@ pub fn charge_for_exec<K: Kernel>(
 
     // Now we actually charge. If we go below 0, we run out of gas.
 
-    unsafe {
-        set_gas_spent(exec_gas.as_milligas())
-    }
     let t = data
         .kernel
         .charge_gas("wasm_exec", exec_gas_charge)
@@ -181,7 +177,7 @@ pub fn charge_for_exec<K: Kernel>(
 /// The Wasm instrumentation machinery via [fvm_wasm_instrument::gas_metering::MemoryGrowCost]
 /// only charges for growing the memory _beyond_ the initial amount. It's up to us to make sure
 /// the minimum memory is properly charged for.
-#[cfg_attr(feature="tracing", instrument())]
+#[cfg_attr(feature = "tracing", instrument())]
 pub fn charge_for_init<K: Kernel>(
     ctx: &mut impl AsContextMut<Data = InvocationData<K>>,
     module: &Module,
@@ -206,7 +202,7 @@ pub fn charge_for_init<K: Kernel>(
 ///
 /// In practice this includes all the time elapsed since the `InvocationData` was created,
 /// ie. this is the first time we'll use the `last_charge_time`.
-#[cfg_attr(feature="tracing", instrument())]
+#[cfg_attr(feature = "tracing", instrument())]
 pub fn record_init_time<K: Kernel>(
     ctx: &mut impl AsContextMut<Data = InvocationData<K>>,
     timer: GasTimer,
@@ -223,7 +219,7 @@ pub fn record_init_time<K: Kernel>(
 }
 
 /// Get the minimum amount of memory required by a module.
-#[cfg_attr(feature="tracing", instrument())]
+#[cfg_attr(feature = "tracing", instrument())]
 fn min_memory_bytes(module: &Module) -> crate::kernel::Result<usize> {
     // NOTE: Inside wasmtime this happens slightly differently, by iterating the memory plans:
     // https://github.com/bytecodealliance/wasmtime/blob/v2.0.1/crates/runtime/src/instance/allocator/pooling.rs#L380-L403
@@ -242,7 +238,7 @@ fn min_memory_bytes(module: &Module) -> crate::kernel::Result<usize> {
 /// This relies on a few assumptions:
 ///     * That we use the default value for `InstanceLimits::tables` and only allow 1 table.
 ///     * That `Linker::command` will only allow them to be exported with the name "table".
-#[cfg_attr(feature="tracing", instrument())]
+#[cfg_attr(feature = "tracing", instrument())]
 fn min_table_elements(module: &Module) -> Option<u32> {
     if let Some(ExternType::Table(t)) = module.get_export("table") {
         Some(t.minimum())
@@ -256,7 +252,7 @@ use self::error::Abort;
 
 // Binds the syscall handlers so they can handle invocations
 // from the actor code.
-#[cfg_attr(feature="tracing", instrument())]
+#[cfg_attr(feature = "tracing", instrument())]
 pub fn bind_syscalls(
     linker: &mut Linker<InvocationData<impl Kernel + 'static>>,
 ) -> anyhow::Result<()> {
