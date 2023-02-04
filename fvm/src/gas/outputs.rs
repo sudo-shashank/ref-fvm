@@ -1,17 +1,14 @@
 // Copyright 2021-2023 Protocol Labs
 // SPDX-License-Identifier: Apache-2.0, MIT
 
-use fvm_shared::econ::TokenAmount;
-
-
 use fuzzing_tracker::instrument;
-#[cfg(feature="tracing")]
+use fvm_shared::econ::TokenAmount;
+#[cfg(feature = "tracing")]
 // Injected during build
 #[no_mangle]
 extern "Rust" {
     fn set_custom_probe(line: u64) -> ();
 }
-
 
 #[derive(Clone, Default)]
 pub(crate) struct GasOutputs {
@@ -27,7 +24,7 @@ pub(crate) struct GasOutputs {
 }
 
 impl GasOutputs {
-    #[cfg_attr(feature="tracing", instrument())]
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn compute(
         // In whole gas units.
         gas_used: u64,
@@ -70,6 +67,7 @@ impl GasOutputs {
     }
 }
 
+#[cfg_attr(feature = "tracing", instrument())]
 fn compute_gas_overestimation_burn(gas_used: u64, gas_limit: u64) -> (u64, u64) {
     const GAS_OVERUSE_NUM: u128 = 11;
     const GAS_OVERUSE_DENOM: u128 = 10;
