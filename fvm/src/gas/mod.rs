@@ -20,9 +20,8 @@ mod outputs;
 mod price_list;
 mod timer;
 
-
 use fuzzing_tracker::instrument;
-#[cfg(feature="tracing")]
+#[cfg(feature = "tracing")]
 // Injected during build
 #[no_mangle]
 extern "Rust" {
@@ -101,12 +100,12 @@ impl Gas {
 }
 
 impl num_traits::Zero for Gas {
-    #[cfg_attr(feature="tracing", instrument())]
+    #[cfg_attr(feature = "tracing", instrument())]
     fn zero() -> Self {
         Gas(0)
     }
 
-    #[cfg_attr(feature="tracing", instrument())]
+    #[cfg_attr(feature = "tracing", instrument())]
     fn is_zero(&self) -> bool {
         self.0 == 0
     }
@@ -189,6 +188,7 @@ impl GasTracker {
     ///
     /// - If the gas limit exceeds `i64::MAX` milligas, it's rounded down to `i64::MAX` milligas.
     /// - If the gas used exceeds the gas limit, it's capped at the gas limit.
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn new(mut gas_limit: Gas, mut gas_used: Gas, enable_tracing: bool) -> Self {
         const MAX_GAS: Gas = Gas::from_milligas(i64::MAX as u64);
         gas_limit = gas_limit.min(MAX_GAS);
@@ -201,7 +201,7 @@ impl GasTracker {
         }
     }
 
-    #[cfg_attr(feature="tracing", instrument())]
+    #[cfg_attr(feature = "tracing", instrument())]
     fn charge_gas_inner(&self, to_use: Gas) -> Result<()> {
         // The gas type uses saturating math.
         let gas_used = self.gas_used.get() + to_use;
@@ -217,7 +217,7 @@ impl GasTracker {
 
     /// Safely consumes gas and returns an out of gas error if there is not sufficient
     /// enough gas remaining for charge.
-    #[cfg_attr(feature="tracing", instrument())]
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn charge_gas(&self, name: &str, to_use: Gas) -> Result<GasTimer> {
         log::trace!("charging gas: {} {}", name, to_use);
         let res = self.charge_gas_inner(to_use);
@@ -232,7 +232,7 @@ impl GasTracker {
     }
 
     /// Applies the specified gas charge, where quantities are supplied in milligas.
-    #[cfg_attr(feature="tracing", instrument())]
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn apply_charge(&self, mut charge: GasCharge) -> Result<GasTimer> {
         let to_use = charge.total();
         log::trace!("charging gas: {} {}", &charge.name, to_use);
@@ -247,6 +247,7 @@ impl GasTracker {
     }
 
     /// Push a new gas limit.
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn push_limit(&mut self, new_limit: Gas) {
         self.gas_snapshots.push(GasSnapshot {
             limit: self.gas_limit,
@@ -258,6 +259,7 @@ impl GasTracker {
 
     /// Pop a gas limit, restoring the previous one, and adding the newly used gas to the old gas
     /// limit.
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn pop_limit(&mut self) -> Result<()> {
         let snap = self
             .gas_snapshots
@@ -270,24 +272,24 @@ impl GasTracker {
     }
 
     /// Getter for the maximum gas usable by this message.
-    #[cfg_attr(feature="tracing", instrument())]
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn gas_limit(&self) -> Gas {
         self.gas_limit
     }
 
     /// Getter for gas used.
-    #[cfg_attr(feature="tracing", instrument())]
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn gas_used(&self) -> Gas {
         self.gas_used.get()
     }
 
     /// Getter for gas available.
-    #[cfg_attr(feature="tracing", instrument())]
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn gas_available(&self) -> Gas {
         self.gas_limit - self.gas_used.get()
     }
 
-    #[cfg_attr(feature="tracing", instrument())]
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn drain_trace(&self) -> impl Iterator<Item = GasCharge> + '_ {
         self.trace
             .as_ref()
