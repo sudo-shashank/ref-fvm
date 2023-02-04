@@ -278,13 +278,25 @@ lazy_static! {
             memory_fill_per_byte_cost: Gas::from_milligas(400),
         },
 
-        // TODO::PARAM
+        // These parameters are specifically sized for EVM events. They will need
+        // to be revisited before Wasm actors are able to emit arbitrary events.
+        //
+        // Validation costs are dependent on encoded length, but also
+        // co-dependent on the number of entries. The latter is a chicken-and-egg
+        // situation because we can only learn how many entries were emitted once we
+        // decode the CBOR event.
+        //
+        // We will likely need to revisit the ABI of emit_event to remove CBOR
+        // as the exchange format.
         event_validation_cost: ScalingCost {
-            flat: Zero::zero(),
-            scale: Zero::zero(),
+            flat: Gas::new(1750),
+            scale: Gas::new(25),
         },
 
-        // TODO::PARAM
+        // The protocol does not currently mandate indexing work, so these are
+        // left at zero. Once we start populating and committing indexing data
+        // structures, these costs will need to reflect the computation and
+        // storage costs of such actions.
         event_accept_per_index_element: ScalingCost {
             flat: Zero::zero(),
             scale: Zero::zero(),
@@ -335,25 +347,18 @@ pub(crate) struct StepCost(Vec<Step>);
 
 #[derive(Clone, Debug, Copy, PartialEq, Eq)]
 pub(crate) struct Step {
-    start: i64,
+    start: u64,
     cost: Gas,
 }
 
 impl StepCost {
-    #[cfg_attr(feature="tracing", instrument())]
-    pub(crate) fn lookup(&self, x: i64) -> Gas {
-        let mut i: i64 = 0;
-        while i < self.0.len() as i64 {
-            if self.0[i as usize].start > x {
-                break;
-            }
-            i += 1;
-        }
-        i -= 1;
-        if i < 0 {
-            return Gas::zero();
-        }
-        self.0[i as usize].cost
+    pub(crate) fn lookup(&self, x: u64) -> Gas {
+        self.0
+            .iter()
+            .rev() // from the end
+            .find(|s| s.start <= x) // find the first "start" at or before the target.
+            .map(|s| s.cost) // and return the cost
+            .unwrap_or_default() // or zero
     }
 }
 
@@ -620,7 +625,7 @@ impl PriceList {
                     )
             });
         // Should be safe because there is a limit to how much seals get aggregated
-        let num = aggregate.infos.len() as i64;
+        let num = aggregate.infos.len() as u64;
         GasCharge::new(
             "OnVerifyAggregateSeals",
             per_proof * num + step.lookup(num),
@@ -897,7 +902,7 @@ impl PriceList {
 
     #[inline]
     pub fn on_actor_event_accept(&self, evt: &ActorEvent, serialized_len: usize) -> GasCharge {
-        let (mut indexed_bytes, mut indexed_elements) = (0, 0);
+        let (mut indexed_bytes, mut indexed_elements) = (0usize, 0u32);
         for evt in evt.entries.iter() {
             if evt.flags.contains(Flags::FLAG_INDEXED_KEY) {
                 indexed_bytes += evt.key.len();
@@ -909,19 +914,33 @@ impl PriceList {
             }
         }
 
-        // The estimated size of the serialized StampedEvent event, which includes the ActorEvent
-        // + 8 bytes for the actor ID + some bytes for CBOR framing.
+        // The estimated size of the serialized StampedEvent event, which
+        // includes the ActorEvent + 8 bytes for the actor ID + some bytes
+        // for CBOR framing.
         const STAMP_EXTRA_SIZE: usize = 12;
         let stamped_event_size = serialized_len + STAMP_EXTRA_SIZE;
 
+        // Charge for 3 memory copy operations.
+        // This includes the cost of forming a StampedEvent, copying into the
+        // AMT's buffer on finish, and returning to the client.
         let memcpy = self.block_memcpy.apply(stamped_event_size);
+
+        // Charge for 2 memory allocations.
+        // This includes the cost of retaining the StampedEvent in the call manager,
+        // and allocaing into the AMT's buffer on finish.
         let alloc = self.block_allocate.apply(stamped_event_size);
+
+        // Charge for the hashing on AMT insertion.
+        let hash = self.hashing_cost[&SupportedHashes::Blake2b256].apply(stamped_event_size);
 
         GasCharge::new(
             "OnActorEventAccept",
-            memcpy.mul(3) + alloc,
+            memcpy + alloc,
             self.event_accept_per_index_element.flat * indexed_elements
-                + self.event_accept_per_index_element.scale * indexed_bytes,
+                + self.event_accept_per_index_element.scale * indexed_bytes
+                + memcpy * 2u32 // deferred cost, placing here to hide from benchmark
+                + alloc // deferred cost, placing here to hide from benchmark
+                + hash, // deferred cost, placing here to hide from benchmark
         )
     }
 }
@@ -946,10 +965,7 @@ impl Rules for WasmGasPrices {
             linear: Gas,
             unit_multiplier: u32,
         ) -> anyhow::Result<InstructionCost> {
-            let base = base
-                .as_milligas()
-                .try_into()
-                .context("base gas exceeds u32")?;
+            let base = base.as_milligas();
             let gas_per_unit = linear * unit_multiplier;
             let expansion_cost: u32 = gas_per_unit
                 .as_milligas()
@@ -1256,4 +1272,44 @@ fn test_read_write() {
         Gas::new(100)
     );
     assert_eq!(HYGGE_PRICES.on_block_create(10).total(), Gas::new(100));
+}
+
+#[test]
+fn test_step_cost() {
+    let costs = StepCost(vec![
+        Step {
+            start: 10,
+            cost: Gas::new(1),
+        },
+        Step {
+            start: 20,
+            cost: Gas::new(2),
+        },
+    ]);
+    assert!(costs.lookup(0).is_zero());
+    assert!(costs.lookup(5).is_zero());
+
+    assert_eq!(costs.lookup(10), Gas::new(1));
+    assert_eq!(costs.lookup(11), Gas::new(1));
+    assert_eq!(costs.lookup(19), Gas::new(1));
+
+    assert_eq!(costs.lookup(20), Gas::new(2));
+    assert_eq!(costs.lookup(100), Gas::new(2));
+}
+
+#[test]
+fn test_step_cost_empty() {
+    let costs = StepCost(vec![]);
+    assert!(costs.lookup(0).is_zero());
+    assert!(costs.lookup(10).is_zero());
+}
+
+#[test]
+fn test_step_cost_zero() {
+    let costs = StepCost(vec![Step {
+        start: 0,
+        cost: Gas::new(1),
+    }]);
+    assert_eq!(costs.lookup(0), Gas::new(1));
+    assert_eq!(costs.lookup(10), Gas::new(1));
 }

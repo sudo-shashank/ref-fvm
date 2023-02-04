@@ -25,7 +25,7 @@ pub fn charge_gas(
     context: Context<'_, impl Kernel>,
     name_off: u32,
     name_len: u32,
-    compute: i64,
+    compute: u64,
 ) -> Result<()> {
     #[cfg(feature = "instrument-syscalls")]
     unsafe { set_syscall_probe("syscall.gas.charge_gas") };
