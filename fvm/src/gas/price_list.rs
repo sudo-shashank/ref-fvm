@@ -76,7 +76,7 @@ lazy_static! {
     static ref HYGGE_PRICES: PriceList = PriceList {
         on_chain_message_compute: ScalingCost::fixed(Gas::new(38863)),
         on_chain_message_storage: ScalingCost {
-            flat: Gas::new(36),
+            flat: Gas::new(36*1300),
             scale: Gas::new(1300),
         },
 
@@ -91,7 +91,7 @@ lazy_static! {
 
         actor_lookup: Gas::new(500_000),
         actor_update: Gas::new(475_000),
-        actor_create_storage: Gas::new(250_000),
+        actor_create_storage: Gas::new(650_000),
 
         address_lookup: Gas::new(1_050_000),
         address_assignment: Gas::new(1_000_000),
@@ -133,6 +133,10 @@ lazy_static! {
                 }
             }
         },
+
+        tipset_cid_latest: Gas::new(50_000),
+        tipset_cid_historical: Gas::new(215_000),
+
         compute_unsealed_sector_cid_base: Gas::new(98647),
         verify_seal_base: Gas::new(2000), // TODO revisit potential removal of this
 
@@ -243,8 +247,8 @@ lazy_static! {
         },
 
         block_persist_storage: ScalingCost {
-            flat: Gas::new(130000), // ~ Assume about 100 bytes of metadata per block.
-            scale: Gas::new(1300),
+            flat: Gas::new(334000), // ~ Assume about 100 bytes of metadata per block.
+            scale: Gas::new(3340),
         },
 
         block_persist_compute: Gas::new(172000),
@@ -407,6 +411,11 @@ pub struct PriceList {
     pub(crate) secp256k1_recover_cost: Gas,
 
     pub(crate) hashing_cost: HashMap<SupportedHashes, ScalingCost>,
+
+    /// Gas cost for looking up the last tipset CID.
+    pub(crate) tipset_cid_latest: Gas,
+    /// Gas cost for looking up older tipset keys.
+    pub(crate) tipset_cid_historical: Gas,
 
     pub(crate) compute_unsealed_sector_cid_base: Gas,
     pub(crate) verify_seal_base: Gas,
@@ -844,6 +853,20 @@ impl PriceList {
             "OnGetCodeCidForType",
             self.builtin_actor_manifest_lookup,
             Zero::zero(),
+        )
+    }
+
+    /// Returns the gas required for looking up a tipset CID with the given lookback.
+    #[inline]
+    pub fn on_tipset_cid(&self, lookback: bool) -> GasCharge {
+        GasCharge::new(
+            "OnTipsetCid",
+            Zero::zero(),
+            if lookback {
+                self.tipset_cid_historical
+            } else {
+                self.tipset_cid_latest
+            },
         )
     }
 
