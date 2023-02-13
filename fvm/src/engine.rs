@@ -368,6 +368,7 @@ impl Engine {
             )
         })?;
         // compile and cache instantiated WASM module
+        log::trace!("Preparing Wasm bytecode");
         Ok(self.prepare_wasm_bytecode(code_cid, &wasm)?.0.size)
     }
 
@@ -410,15 +411,18 @@ impl Engine {
         wasm: &[u8],
     ) -> anyhow::Result<(ModuleRecord, Vec<u8>)> {
         let k = self.with_redirect(k);
+        log::trace!("Getting cache");
         let mut cache = self.0.module_cache.lock().expect("module_cache poisoned");
         let (module, bin) = match cache.get(k) {
             Some(module) => (module.clone(), vec![]),
             None => {
                 let (module, bin) = self.load_raw(wasm)?;
                 cache.insert(*k, module.clone());
+                log::trace!("Retrieving and inserting in cache");
                 (module, bin)
             }
         };
+        log::trace!("Returning from cache");
         Ok((module, bin))
     }
 
@@ -429,6 +433,7 @@ impl Engine {
             .map_err(anyhow::Error::msg)
             .with_context(|| "failed to validate actor wasm")?;
 
+        log::trace!("Instrumenting wasm");
         // Note: when adding debug mode support (with recorded syscall replay) don't instrument to
         // avoid breaking debug info
 
@@ -438,6 +443,7 @@ impl Engine {
         // before injecting gas accounting calls to avoid this overhead in every single
         // block of code.
         let now = ProcessTime::now();
+        log::trace!("Injecting stack limiter");
         let raw_wasm = stack_limiter::inject(raw_wasm, self.0.config.max_wasm_stack)
             .map_err(anyhow::Error::msg)?;
         unsafe { set_stack_limiter_time(now.elapsed().as_nanos()) }
@@ -455,11 +461,13 @@ impl Engine {
         //   https://github.com/WebAssembly/reference-types/issues/29 and is not recognised by the
         //   parity-wasm module parser, so the contract cannot grow the tables.
         let now = ProcessTime::now();
+        log::trace!("Injecting gas metering");
         let raw_wasm = gas_metering::inject(&raw_wasm, self.0.config.wasm_prices, "gas")
             .map_err(|_| anyhow::Error::msg("injecting gas counter failed"))?;
         unsafe { set_gas_metering_injection_time(now.elapsed().as_nanos()) }
 
         let now = ProcessTime::now();
+        log::trace!("Compiling");
         let module = Module::from_binary(&self.0.engine, &raw_wasm)?;
         unsafe { set_compilation_time(now.elapsed().as_nanos()) }
         let machine_code = module.serialize()?;
@@ -473,6 +481,12 @@ impl Engine {
             },
             raw_wasm,
         ))
+    }
+
+    /// Just for debugging and testing
+    #[cfg(feature = "testing")]
+    pub fn get_compiled(&self, raw_wasm: &Vec<u8>) -> anyhow::Result<Module> {
+        Ok(Module::from_binary(&self.0.engine, &raw_wasm)?)
     }
 
     /// Load compiled wasm code into the engine.
