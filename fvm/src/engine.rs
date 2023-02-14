@@ -46,6 +46,12 @@ extern "Rust" {
     fn set_custom_probe(line: u64) -> ();
 }
 
+#[cfg(feature = "wasmopt")]
+#[no_mangle]
+extern "Rust" {
+    fn extreme_wasmopt(name: Option<str>, wasm: &Vec<u8>) -> Vec<u8>;
+}
+
 /// Container managing engines with different consensus-affecting configurations.
 pub struct MultiEngine {
     engines: Mutex<HashMap<EngineConfig, EnginePool>>,
@@ -428,6 +434,12 @@ impl Engine {
 
     #[cfg_attr(feature = "tracing", instrument())]
     fn load_raw(&self, raw_wasm: &[u8]) -> anyhow::Result<(ModuleRecord, Vec<u8>)> {
+        // Optimize First
+        let mut raw_wasm = raw_wasm.clone();
+        #[cfg(feature = "wasmopt")]
+        {
+            raw_wasm = extreme_wasmopt(None, &raw_wasm);
+        };
         // First make sure that non-instrumented wasm is valid
         Module::validate(&self.0.engine, raw_wasm)
             .map_err(anyhow::Error::msg)
