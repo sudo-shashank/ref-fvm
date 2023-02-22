@@ -1,20 +1,18 @@
 // Copyright 2021-2023 Protocol Labs
 // SPDX-License-Identifier: Apache-2.0, MIT
 use anyhow::{anyhow, Context as _};
+use fuzzing_tracker::instrument;
 use fvm_shared::{sys, ActorID};
 
 use super::Context;
 use crate::kernel::{ClassifyResult, Result};
 use crate::{syscall_error, Kernel};
-
-use fuzzing_tracker::instrument;
-#[cfg(feature="tracing")]
+#[cfg(feature = "tracing")]
 // Injected during build
 #[no_mangle]
 extern "Rust" {
     fn set_custom_probe(line: u64) -> ();
 }
-
 
 // Injected during build
 #[no_mangle]
@@ -22,20 +20,22 @@ extern "Rust" {
     fn set_syscall_probe(probe: &'static str) -> ();
 }
 
-#[cfg_attr(feature="tracing", instrument())]
+#[cfg_attr(feature = "tracing", instrument())]
 pub fn resolve_address(
     context: Context<'_, impl Kernel>,
     addr_off: u32, // Address
     addr_len: u32,
 ) -> Result<u64> {
     #[cfg(feature = "instrument-syscalls")]
-    unsafe { set_syscall_probe("syscall.actor.resolve_address") };
+    unsafe {
+        set_syscall_probe("syscall.actor.resolve_address")
+    };
     let addr = context.memory.read_address(addr_off, addr_len)?;
     let actor_id = context.kernel.resolve_address(&addr)?;
     Ok(actor_id)
 }
 
-#[cfg_attr(feature="tracing", instrument())]
+#[cfg_attr(feature = "tracing", instrument())]
 pub fn lookup_delegated_address(
     context: Context<'_, impl Kernel>,
     actor_id: ActorID,
@@ -43,7 +43,9 @@ pub fn lookup_delegated_address(
     obuf_len: u32,
 ) -> Result<u32> {
     #[cfg(feature = "instrument-syscalls")]
-    unsafe { set_syscall_probe("syscall.actor.lookup_address") };
+    unsafe {
+        set_syscall_probe("syscall.actor.lookup_address")
+    };
     let obuf = context.memory.try_slice_mut(obuf_off, obuf_len)?;
     match context.kernel.lookup_delegated_address(actor_id)? {
         Some(address) => {
@@ -59,7 +61,7 @@ pub fn lookup_delegated_address(
     }
 }
 
-#[cfg_attr(feature="tracing", instrument())]
+#[cfg_attr(feature = "tracing", instrument())]
 pub fn get_actor_code_cid(
     context: Context<'_, impl Kernel>,
     actor_id: u64,
@@ -67,7 +69,9 @@ pub fn get_actor_code_cid(
     obuf_len: u32,
 ) -> Result<u32> {
     #[cfg(feature = "instrument-syscalls")]
-    unsafe { set_syscall_probe("syscall.actor.get_actor_code_cid") };
+    unsafe {
+        set_syscall_probe("syscall.actor.get_actor_code_cid")
+    };
     // We always check arguments _first_, before we do anything else.
     context.memory.check_bounds(obuf_off, obuf_len)?;
 
@@ -80,14 +84,16 @@ pub fn get_actor_code_cid(
 ///
 /// The output buffer must be at least 21 bytes long, which is the length of a class 2 address
 /// (protocol-generated actor address).
-#[cfg_attr(feature="tracing", instrument())]
+#[cfg_attr(feature = "tracing", instrument())]
 pub fn next_actor_address(
     context: Context<'_, impl Kernel>,
     obuf_off: u32, // Address (out)
     obuf_len: u32,
 ) -> Result<u32> {
     #[cfg(feature = "instrument-syscalls")]
-    unsafe { set_syscall_probe("syscall.actor.next_actor_address") };
+    unsafe {
+        set_syscall_probe("syscall.actor.next_actor_address")
+    };
     // Check bounds first.
     let obuf = context.memory.try_slice_mut(obuf_off, obuf_len)?;
 
@@ -117,7 +123,7 @@ pub fn next_actor_address(
     Ok(len as u32)
 }
 
-#[cfg_attr(feature="tracing", instrument())]
+#[cfg_attr(feature = "tracing", instrument())]
 pub fn create_actor(
     context: Context<'_, impl Kernel>,
     actor_id: u64, // ID
@@ -126,7 +132,9 @@ pub fn create_actor(
     delegated_addr_len: u32,
 ) -> Result<()> {
     #[cfg(feature = "instrument-syscalls")]
-    unsafe { set_syscall_probe("syscall.actor.create_actor") };
+    unsafe {
+        set_syscall_probe("syscall.actor.create_actor")
+    };
     let typ = context.memory.read_cid(typ_off)?;
     let addr = (delegated_addr_len > 0)
         .then(|| {
@@ -139,48 +147,44 @@ pub fn create_actor(
     context.kernel.create_actor(typ, actor_id, addr)
 }
 
-#[cfg_attr(feature="tracing", instrument())]
+#[cfg_attr(feature = "tracing", instrument())]
 pub fn get_builtin_actor_type(
     context: Context<'_, impl Kernel>,
     code_cid_off: u32, // Cid
 ) -> Result<i32> {
     #[cfg(feature = "instrument-syscalls")]
-    unsafe { set_syscall_probe("syscall.actor.get_builtin_actor_type") };
+    unsafe {
+        set_syscall_probe("syscall.actor.get_builtin_actor_type")
+    };
     let cid = context.memory.read_cid(code_cid_off)?;
     Ok(context.kernel.get_builtin_actor_type(&cid)? as i32)
 }
 
-#[cfg_attr(feature="tracing", instrument())]
+#[cfg_attr(feature = "tracing", instrument())]
 pub fn get_code_cid_for_type(
     context: Context<'_, impl Kernel>,
     typ: i32,
     obuf_off: u32, // Cid
     obuf_len: u32,
 ) -> Result<u32> {
-    #[cfg(feature = "instrument-syscalls")]
-    unsafe { set_syscall_probe("syscall.actor.get_code_cid_for_type") };
     context.memory.check_bounds(obuf_off, obuf_len)?;
 
     let k = context.kernel.get_code_cid_for_type(typ as u32)?;
     context.memory.write_cid(&k, obuf_off, obuf_len)
 }
 
-#[cfg_attr(feature="tracing", instrument())]
+#[cfg_attr(feature = "tracing", instrument())]
 #[cfg(feature = "m2-native")]
 pub fn install_actor(
     context: Context<'_, impl Kernel>,
     typ_off: u32, // Cid
 ) -> Result<()> {
-    #[cfg(feature = "instrument-syscalls")]
-    unsafe { set_syscall_probe("syscall.actor.install_actor") };
     let typ = context.memory.read_cid(typ_off)?;
     context.kernel.install_actor(typ)
 }
 
-#[cfg_attr(feature="tracing", instrument())]
+#[cfg_attr(feature = "tracing", instrument())]
 pub fn balance_of(context: Context<'_, impl Kernel>, actor_id: u64) -> Result<sys::TokenAmount> {
-    #[cfg(feature = "instrument-syscalls")]
-    unsafe { set_syscall_probe("syscall.actor.balance_of") };
     let balance = context.kernel.balance_of(actor_id)?;
     balance
         .try_into()

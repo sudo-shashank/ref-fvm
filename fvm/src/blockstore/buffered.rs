@@ -32,6 +32,7 @@ impl<BS> BufferedBlockstore<BS>
 where
     BS: Blockstore,
 {
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn new(base: BS) -> Self {
         Self {
             base,
@@ -39,6 +40,7 @@ where
         }
     }
 
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn into_inner(self) -> BS {
         self.base
     }
@@ -51,6 +53,7 @@ where
     /// Flushes the buffered cache based on the root node.
     /// This will recursively traverse the cache and write all data connected by links to this
     /// root Cid. Calling flush will not reset the write buffer.
+    #[cfg_attr(feature = "tracing", instrument())]
     fn flush(&self, root: &Cid) -> Result<()> {
         let mut buffer = Vec::new();
         let s = self.write.borrow();
