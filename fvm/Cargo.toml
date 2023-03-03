@@ -22,8 +22,8 @@ multihash = { version = "0.16.3", default-features = false }
 fvm_shared = { version = "3.0.0-alpha.20", path = "../shared", features = ["crypto"] }
 fvm_ipld_hamt = { version = "0.6.1", path = "../ipld/hamt" }
 fvm_ipld_amt = { version = "0.5.1", path = "../ipld/amt" }
-fvm_ipld_blockstore = { version = "0.1.1", path = "../ipld/blockstore" }
-fvm_ipld_encoding = { version = "0.3.3", path = "../ipld/encoding" }
+fvm_ipld_blockstore = { version = "0.1.1", path = "../ipld/blockstore"  }
+fvm_ipld_encoding = { version = "0.3.3", path = "../ipld/encoding"}
 serde = { version = "1.0", features = ["derive"] }
 serde_tuple = "0.5"
 serde_repr = "0.1"
@@ -74,7 +74,7 @@ arb = ["arbitrary", "quickcheck"]
 m2-native = []
 instrument-syscalls = []
 tracing = [ ]
-locations = [ "fuzzing-tracker/locations", "fuzzing-tracker/testing" ]
+locations = [ "fuzzing-tracker/locations", "fuzzing-tracker/testing", "fvm_ipld_amt/tracing", "fvm_ipld_amt/locations", "fvm_ipld_encoding/locations", "fvm_ipld_encoding/tracing" ]
 wasmopt = [ ]
 hyperspace = []
 gas_calibration = []

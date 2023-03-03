@@ -6,20 +6,29 @@ use std::fmt::{Debug, Formatter};
 use std::ops::Deref;
 use std::rc::Rc;
 
+use fuzzing_tracker::instrument;
 use serde::{Deserialize, Serialize};
 
 use super::errors::Error;
 use crate::{de, from_slice, ser, strict_bytes, to_vec};
+#[cfg(feature = "tracing")]
+// Injected during build
+#[no_mangle]
+extern "Rust" {
+    fn set_custom_probe(line: u64) -> ();
+}
 
 /// Cbor utility functions for serializable objects
 #[deprecated(note = "use to_vec or from_slice directly")]
 pub trait Cbor: ser::Serialize + de::DeserializeOwned {
     /// Marshalls cbor encodable object into cbor bytes
+    #[cfg_attr(feature = "tracing", instrument())]
     fn marshal_cbor(&self) -> Result<Vec<u8>, Error> {
         to_vec(&self)
     }
 
     /// Unmarshals cbor encoded bytes to object
+    #[cfg_attr(feature = "tracing", instrument())]
     fn unmarshal_cbor(bz: &[u8]) -> Result<Self, Error> {
         from_slice(bz)
     }

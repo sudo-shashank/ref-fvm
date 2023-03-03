@@ -19,9 +19,13 @@ fvm_ipld_blockstore = { version = "0.1", path = "../blockstore" }
 # multihash is also re-exported by `cid`. Having `multihash` here as a
 # depdendency is needed to enable the features of the re-export.
 multihash = { version = "0.16.1", default-features = false, features = ["blake2b", "multihash-impl"] }
+fuzzing-tracker = { path = "../../../../fuzzing_fvm/crates/tracker", features = ['stmt']  }
 
 [features]
 default = []
+tracing = []
+locations = [ "fuzzing-tracker/locations", "fuzzing-tracker/testing" ]
+
 
 [dev-dependencies]
 serde_json = "1.0.79"

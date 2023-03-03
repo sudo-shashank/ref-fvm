@@ -16,9 +16,13 @@ itertools = "0.10"
 anyhow = "1.0.51"
 fvm_ipld_blockstore = { version = "0.1", path = "../blockstore" }
 fvm_ipld_encoding = { version = "0.3", path = "../encoding" }
+fuzzing-tracker = { path = "../../../../fuzzing_fvm/crates/tracker", features = ['stmt']  }
 
 [features]
 go-interop = []
+tracing = []
+locations = [ "fuzzing-tracker/locations", "fuzzing-tracker/testing" ]
+
 
 [dev-dependencies]
 criterion = "0.4.0"

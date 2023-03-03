@@ -5,6 +5,7 @@
 use anyhow::anyhow;
 use cid::multihash::Code;
 use cid::Cid;
+use fuzzing_tracker::instrument;
 use fvm_ipld_blockstore::Blockstore;
 use fvm_ipld_encoding::de::DeserializeOwned;
 use fvm_ipld_encoding::ser::Serialize;
@@ -19,6 +20,12 @@ use crate::root::RootImpl;
 use crate::{
     init_sized_vec, nodes_for_height, Error, Node, DEFAULT_BIT_WIDTH, MAX_HEIGHT, MAX_INDEX,
 };
+#[cfg(feature = "tracing")]
+// Injected during build
+#[no_mangle]
+extern "Rust" {
+    fn set_custom_probe(line: u64) -> ();
+}
 
 #[derive(Debug)]
 #[doc(hidden)]
@@ -65,11 +72,13 @@ where
     Ver: AmtVersion,
 {
     /// Constructor for Root AMT node
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn new(block_store: BS) -> Self {
         Self::new_with_bit_width(block_store, DEFAULT_BIT_WIDTH)
     }
 
     /// Construct new Amt with given bit width
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn new_with_bit_width(block_store: BS, bit_width: u32) -> Self {
         Self {
             root: RootImpl::new_with_bit_width(bit_width),
@@ -78,16 +87,19 @@ where
         }
     }
 
+    #[cfg_attr(feature = "tracing", instrument())]
     fn bit_width(&self) -> u32 {
         self.root.bit_width
     }
 
     /// Gets the height of the `Amt`.
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn height(&self) -> u32 {
         self.root.height
     }
 
     /// Gets count of elements added in the `Amt`.
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn count(&self) -> u64 {
         self.root.count
     }
@@ -102,6 +114,7 @@ where
     /// Generates an AMT from an array of serializable objects.
     ///
     /// This can be called with an iterator of _references_ to values to avoid copying.
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn new_from_iter(block_store: BS, vals: impl IntoIterator<Item = V>) -> Result<Cid, Error> {
         Self::new_from_iter_with_bit_width(block_store, DEFAULT_BIT_WIDTH, vals)
     }
@@ -109,6 +122,7 @@ where
     /// Generates an AMT with the requested bitwidth from an array of serializable objects.
     ///
     /// This can be called with an iterator of _references_ to values to avoid copying.
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn new_from_iter_with_bit_width(
         block_store: BS,
         bit_width: u32,
@@ -145,6 +159,7 @@ where
     Ver: AmtVersion,
 {
     /// Constructs an AMT with a blockstore and a Cid of the root of the AMT
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn load(cid: &Cid, block_store: BS) -> Result<Self, Error> {
         // Load root bytes from database
         let root: RootImpl<V, Ver> = block_store
@@ -164,6 +179,7 @@ where
     }
 
     /// Get value at index of AMT
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn get(&self, i: u64) -> Result<Option<&V>, Error> {
         if i > MAX_INDEX {
             return Err(Error::OutOfRange(i));
@@ -179,6 +195,7 @@ where
     }
 
     /// Set value at index
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn set(&mut self, i: u64, val: V) -> Result<(), Error> {
         if i > MAX_INDEX {
             return Err(Error::OutOfRange(i));
@@ -224,6 +241,7 @@ where
 
     /// Batch set (naive for now)
     // TODO Implement more efficient batch set to not have to traverse tree and keep cache for each
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn batch_set(&mut self, vals: impl IntoIterator<Item = V>) -> Result<(), Error> {
         for (i, val) in (0u64..).zip(vals) {
             self.set(i, val)?;
@@ -233,6 +251,7 @@ where
     }
 
     /// Delete item from AMT at index
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn delete(&mut self, i: u64) -> Result<Option<V>, Error> {
         if i > MAX_INDEX {
             return Err(Error::OutOfRange(i));
@@ -301,6 +320,7 @@ where
     /// return an error if one is not found.
     ///
     /// Returns true if items were deleted.
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn batch_delete(
         &mut self,
         iter: impl IntoIterator<Item = u64>,
@@ -321,6 +341,7 @@ where
     }
 
     /// flush root and return Cid used as key in block store
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn flush(&mut self) -> Result<Cid, Error> {
         if let Some(cid) = self.flushed_cid {
             return Ok(cid);
@@ -367,6 +388,7 @@ where
 
     /// Iterates over each value in the Amt and runs a function on the values, for as long as that
     /// function keeps returning `true`.
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn for_each_while<F>(&self, mut f: F) -> Result<(), Error>
     where
         F: FnMut(u64, &V) -> anyhow::Result<bool>,
@@ -385,6 +407,7 @@ where
 
     /// Iterates over each value in the Amt and runs a function on the values that allows modifying
     /// each value.
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn for_each_mut<F>(&mut self, mut f: F) -> Result<(), Error>
     where
         V: Clone,
@@ -398,6 +421,7 @@ where
 
     /// Iterates over each value in the Amt and runs a function on the values that allows modifying
     /// each value, for as long as that function keeps returning `true`.
+    #[cfg_attr(feature = "tracing", instrument())]
     pub fn for_each_while_mut<F>(&mut self, mut f: F) -> Result<(), Error>
     where
         // TODO remove clone bound when go-interop doesn't require it.
