@@ -55,6 +55,7 @@ features = ["cranelift", "pooling-allocator", "parallel-compilation"]
 default = ["opencl"]
 opencl = ["filecoin-proofs-api/opencl"]
 cuda = ["filecoin-proofs-api/cuda"]
+cuda-supraseal = ["filecoin-proofs-api/cuda-supraseal"]
 testing = []
 arb = ["arbitrary"]
 
