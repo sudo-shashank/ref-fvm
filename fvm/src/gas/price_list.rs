@@ -139,6 +139,14 @@ lazy_static! {
             (
                 RegisteredSealProof::StackedDRG64GiBV1P1,
                 Gas::new(359272)
+            ),
+            (
+                RegisteredSealProof::StackedDRG32GiBV1P1_Feat_SyntheticPoRep,
+                Gas::new(449900)
+            ),
+            (
+                RegisteredSealProof::StackedDRG64GiBV1P1_Feat_SyntheticPoRep,
+                Gas::new(359272)
             )
         ].iter().copied().collect(),
         verify_aggregate_seal_steps: [
@@ -159,6 +167,36 @@ lazy_static! {
             ),
             (
                 RegisteredSealProof::StackedDRG64GiBV1P1,
+                StepCost (
+                    vec![
+                        Step{start: 4, cost: Gas::new(102581240)},
+                        Step{start: 7, cost: Gas::new(110803030)},
+                        Step{start: 13, cost: Gas::new(120803700)},
+                        Step{start: 26, cost: Gas::new(134642130)},
+                        Step{start: 52, cost: Gas::new(157357890)},
+                        Step{start: 103, cost: Gas::new(203017690)},
+                        Step{start: 205, cost: Gas::new(304253590)},
+                        Step{start: 410, cost: Gas::new(509880640)},
+                    ]
+                )
+            ),
+            (
+                RegisteredSealProof::StackedDRG32GiBV1P1_Feat_SyntheticPoRep,
+                StepCost (
+                    vec![
+                        Step{start: 4, cost: Gas::new(103994170)},
+                        Step{start: 7, cost: Gas::new(112356810)},
+                        Step{start: 13, cost: Gas::new(122912610)},
+                        Step{start: 26, cost: Gas::new(137559930)},
+                        Step{start: 52, cost: Gas::new(162039100)},
+                        Step{start: 103, cost: Gas::new(210960780)},
+                        Step{start: 205, cost: Gas::new(318351180)},
+                        Step{start: 410, cost: Gas::new(528274980)},
+                    ]
+                )
+            ),
+            (
+                RegisteredSealProof::StackedDRG64GiBV1P1_Feat_SyntheticPoRep,
                 StepCost (
                     vec![
                         Step{start: 4, cost: Gas::new(102581240)},

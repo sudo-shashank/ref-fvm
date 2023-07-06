@@ -57,7 +57,16 @@ impl RegisteredSealProof {
                 SectorSize::_32GiB => Self::StackedDRG32GiBV1P1,
                 SectorSize::_64GiB => Self::StackedDRG64GiBV1P1,
             }
-        }
+        } /*
+        if network_version < NetworkVersion::V??? {
+            match size {
+                SectorSize::_2KiB => Self::StackedDRG2KiBV1_Feat_SyntheticPoRep,
+                SectorSize::_8MiB => Self::StackedDRG8MiBV1_Feat_SyntheticPoRep,
+                SectorSize::_512MiB => Self::StackedDRG512MiBV1_Feat_SyntheticPoRep,
+                SectorSize::_32GiB => Self::StackedDRG32GiBV1_Feat_SyntheticPoRep,
+                SectorSize::_64GiB => Self::StackedDRG64GiBV1_Feat_SyntheticPoRep,
+            }
+        } */
     }
 
     /// Convert the original proof type to the v1 proof added in network version 7.
@@ -68,6 +77,18 @@ impl RegisteredSealProof {
             Self::StackedDRG8MiBV1 => Self::StackedDRG8MiBV1P1,
             Self::StackedDRG32GiBV1 => Self::StackedDRG32GiBV1P1,
             Self::StackedDRG64GiBV1 => Self::StackedDRG64GiBV1P1,
+            _ => return,
+        };
+    }
+
+    /// Convert the original proof type to the v1 SyntheticPoRep proof added in network version ??.
+    pub fn update_to_v1_feat_synthetic_porep(&mut self) {
+        *self = match self {
+            Self::StackedDRG2KiBV1 => Self::StackedDRG2KiBV1P1_Feat_SyntheticPoRep,
+            Self::StackedDRG512MiBV1 => Self::StackedDRG512MiBV1P1_Feat_SyntheticPoRep,
+            Self::StackedDRG8MiBV1 => Self::StackedDRG8MiBV1P1_Feat_SyntheticPoRep,
+            Self::StackedDRG32GiBV1 => Self::StackedDRG32GiBV1P1_Feat_SyntheticPoRep,
+            Self::StackedDRG64GiBV1 => Self::StackedDRG64GiBV1P1_Feat_SyntheticPoRep,
             _ => return,
         };
     }
