@@ -58,15 +58,15 @@ impl RegisteredSealProof {
                 SectorSize::_64GiB => Self::StackedDRG64GiBV1P1,
             }
         } /*
-        if network_version < NetworkVersion::V??? {
-            match size {
-                SectorSize::_2KiB => Self::StackedDRG2KiBV1_Feat_SyntheticPoRep,
-                SectorSize::_8MiB => Self::StackedDRG8MiBV1_Feat_SyntheticPoRep,
-                SectorSize::_512MiB => Self::StackedDRG512MiBV1_Feat_SyntheticPoRep,
-                SectorSize::_32GiB => Self::StackedDRG32GiBV1_Feat_SyntheticPoRep,
-                SectorSize::_64GiB => Self::StackedDRG64GiBV1_Feat_SyntheticPoRep,
-            }
-        } */
+          if network_version < NetworkVersion::V??? {
+              match size {
+                  SectorSize::_2KiB => Self::StackedDRG2KiBV1_Feat_SyntheticPoRep,
+                  SectorSize::_8MiB => Self::StackedDRG8MiBV1_Feat_SyntheticPoRep,
+                  SectorSize::_512MiB => Self::StackedDRG512MiBV1_Feat_SyntheticPoRep,
+                  SectorSize::_32GiB => Self::StackedDRG32GiBV1_Feat_SyntheticPoRep,
+                  SectorSize::_64GiB => Self::StackedDRG64GiBV1_Feat_SyntheticPoRep,
+              }
+          } */
     }
 
     /// Convert the original proof type to the v1 proof added in network version 7.
