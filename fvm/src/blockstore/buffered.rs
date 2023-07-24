@@ -66,7 +66,7 @@ where
 /// This was implemented because the CBOR library we use does not expose low
 /// methods like this, requiring us to deserialize the whole CBOR payload, which
 /// is unnecessary and quite inefficient for our usecase here.
-#[cfg_attr(feature = "tracing", instrument())
+#[cfg_attr(feature = "tracing", instrument())]
 fn cbor_read_header_buf<B: Read>(br: &mut B) -> anyhow::Result<(u8, u64)> {
     #[inline(always)]
     pub fn read_fixed<const N: usize>(r: &mut impl Read) -> std::io::Result<[u8; N]> {
