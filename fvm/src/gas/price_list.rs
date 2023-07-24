@@ -210,6 +210,26 @@ lazy_static! {
                     scale: Gas::new(43780),
                 },
             ),
+            (RegisteredPoStProof::StackedDRGWindow512MiBV1P1,
+                ScalingCost {
+                    flat: Gas::new(117680921),
+                    scale: Gas::new(43780),
+                },
+            ),
+            (
+                RegisteredPoStProof::StackedDRGWindow32GiBV1P1,
+                ScalingCost {
+                    flat: Gas::new(117680921),
+                    scale: Gas::new(43780),
+                },
+            ),
+            (
+                RegisteredPoStProof::StackedDRGWindow64GiBV1P1,
+                ScalingCost {
+                    flat: Gas::new(117680921),
+                    scale: Gas::new(43780),
+                },
+            ),
         ]
         .iter()
         .copied()
@@ -255,11 +275,11 @@ lazy_static! {
 
         syscall_cost: Gas::new(14000),
 
-        // TODO(#1279)
+        // TODO(#1347)
         builtin_actor_manifest_lookup: Zero::zero(),
-        // TODO(#1279)
+        // TODO(#1347)
         network_context: Zero::zero(),
-        // TODO(#1279)
+        // TODO(#1347)
         message_context: Zero::zero(),
 
         install_wasm_per_byte_cost: Zero::zero(),
@@ -277,7 +297,7 @@ lazy_static! {
             memory_fill_base_cost: Gas::zero(),
             memory_access_cost: Gas::zero(),
 
-            // Don't yet charge anything for copying.
+            // Charge 0.4gas/byte for copying/fill.
             memory_copy_per_byte_cost: Gas::from_milligas(400),
             memory_fill_per_byte_cost: Gas::from_milligas(400),
         },
@@ -693,10 +713,10 @@ impl PriceList {
         const RAND_INITIAL_HASH: u64 =
             // domain separation tag, u64
             8 +
-            // vrf digest
-            32 +
-            // round
-            8;
+                // vrf digest
+                32 +
+                // round
+                8;
 
         GasCharge::new(
             "OnGetRandomness",
@@ -971,9 +991,7 @@ impl PriceList {
 /// Returns gas price list by NetworkVersion for gas consumption.
 pub fn price_list_by_network_version(network_version: NetworkVersion) -> &'static PriceList {
     match network_version {
-        NetworkVersion::V18 => &HYGGE_PRICES,
-        #[cfg(feature = "hyperspace")]
-        _ if network_version > NetworkVersion::V18 => &HYGGE_PRICES,
+        NetworkVersion::V18 | NetworkVersion::V19 | NetworkVersion::V20 => &HYGGE_PRICES,
         _ => panic!("network version {nv} not supported", nv = network_version),
     }
 }

@@ -16,7 +16,7 @@ pub type Codec = u64;
 ///
 /// Internally, this type is a tuple of `u64`s storing the "low" and "high" bits of a little-endian
 /// u128.
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 #[repr(packed, C)]
 pub struct TokenAmount {
     pub lo: u64,
@@ -51,7 +51,7 @@ impl<'a> TryFrom<&'a crate::econ::TokenAmount> for TokenAmount {
 
 bitflags! {
     /// Flags passed to the send syscall.
-    #[derive(Default)]
+    #[derive(Default, Copy, Clone, Eq, PartialEq, Debug)]
     #[repr(transparent)]
     // note: this is 64 bits because I don't want to hate my past self, not because we need them
     // right now. It doesn't really cost anything anyways.

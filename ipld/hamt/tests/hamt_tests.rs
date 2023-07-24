@@ -432,7 +432,7 @@ fn for_each_ranged(factory: HamtFactory, stats: Option<BSStats>, mut cids: CidCh
     assert_eq!(next_key, None);
 
     // Iterate through it again starting at a certain key
-    for start_at in 0..RANGE as usize {
+    for start_at in 0..RANGE {
         let mut kvs_variable_start = Vec::new();
         let (num_traversed, next_key) = hamt
             .for_each_ranged(Some(&kvs[start_at].0), None, |k, v| {
@@ -482,7 +482,7 @@ fn for_each_ranged(factory: HamtFactory, stats: Option<BSStats>, mut cids: CidCh
             if next.is_none() {
                 break;
             } else {
-                assert_eq!(next.clone().unwrap(), kvs[(iterations * PAGE_SIZE)].0);
+                assert_eq!(next.clone().unwrap(), kvs[iterations * PAGE_SIZE].0);
                 cursor = next;
             }
         }
@@ -528,7 +528,7 @@ fn for_each_ranged(factory: HamtFactory, stats: Option<BSStats>, mut cids: CidCh
             if next.is_none() {
                 break;
             } else {
-                assert_eq!(next.clone().unwrap(), kvs[(iterations * PAGE_SIZE)].0);
+                assert_eq!(next.clone().unwrap(), kvs[iterations * PAGE_SIZE].0);
                 cursor = next;
             }
         }

@@ -13,13 +13,15 @@ use fvm_ipld_blockstore::Blockstore;
 use fvm_ipld_encoding::{bytes_32, IPLD_RAW};
 use fvm_shared::address::Payload;
 use fvm_shared::bigint::Zero;
+use fvm_shared::chainid::ChainID;
 use fvm_shared::consensus::ConsensusFault;
 use fvm_shared::crypto::signature;
 use fvm_shared::econ::TokenAmount;
 use fvm_shared::error::ErrorNumber;
 use fvm_shared::event::ActorEvent;
 use fvm_shared::piece::{zero_piece_commitment, PaddedPieceSize};
-use fvm_shared::sector::SectorInfo;
+use fvm_shared::sector::RegisteredPoStProof::{StackedDRGWindow32GiBV1, StackedDRGWindow32GiBV1P1};
+use fvm_shared::sector::{RegisteredPoStProof, SectorInfo};
 use fvm_shared::sys::out::vm::ContextFlags;
 use fvm_shared::{commcid, ActorID};
 use lazy_static::lazy_static;
@@ -117,6 +119,70 @@ where
     #[cfg_attr(feature = "tracing", instrument())]
     fn machine(&self) -> &<Self::CallManager as CallManager>::Machine {
         self.call_manager.machine()
+    }
+
+    fn send<K: Kernel<CallManager = C>>(
+        &mut self,
+        recipient: &Address,
+        method: MethodNum,
+        params_id: BlockId,
+        value: &TokenAmount,
+        gas_limit: Option<Gas>,
+        flags: SendFlags,
+    ) -> Result<SendResult> {
+        let from = self.actor_id;
+        let read_only = self.read_only || flags.read_only();
+
+        if read_only && !value.is_zero() {
+            return Err(syscall_error!(ReadOnly; "cannot transfer value when read-only").into());
+        }
+
+        // Load parameters.
+        let params = if params_id == NO_DATA_BLOCK_ID {
+            None
+        } else {
+            Some(self.blocks.get(params_id)?.clone())
+        };
+
+        // Make sure we can actually store the return block.
+        if self.blocks.is_full() {
+            return Err(syscall_error!(LimitExceeded; "cannot store return block").into());
+        }
+
+        // Send.
+        let result = self.call_manager.with_transaction(|cm| {
+            cm.send::<K>(
+                from, *recipient, method, params, value, gas_limit, read_only,
+            )
+        })?;
+
+        // Store result and return.
+        Ok(match result {
+            InvocationResult {
+                exit_code,
+                value: Some(blk),
+            } => {
+                let block_stat = blk.stat();
+                let block_id = self
+                    .blocks
+                    .put(blk)
+                    .or_fatal()
+                    .context("failed to store a valid return value")?;
+                SendResult {
+                    block_id,
+                    block_stat,
+                    exit_code,
+                }
+            }
+            InvocationResult {
+                exit_code,
+                value: None,
+            } => SendResult {
+                block_id: NO_DATA_BLOCK_ID,
+                block_stat: BlockStat { codec: 0, size: 0 },
+                exit_code,
+            },
+        })
     }
 }
 
@@ -302,7 +368,7 @@ where
         // We perform operations as u64, because we know that the buffer length and offset must fit
         // in a u32.
         let end = i32::try_from((offset as u64) + (buf.len() as u64))
-            .map_err(|_|syscall_error!(IllegalArgument; "offset plus buffer length did not fit into an i32"))?;
+            .map_err(|_| syscall_error!(IllegalArgument; "offset plus buffer length did not fit into an i32"))?;
 
         // Then get the block.
         let block = self.blocks.get(id)?;
@@ -372,76 +438,6 @@ where
         };
         t.stop();
         Ok(ctx)
-    }
-}
-
-impl<C> SendOps for DefaultKernel<C>
-where
-    C: CallManager,
-{
-    #[cfg_attr(feature = "tracing", instrument())]
-    fn send(
-        &mut self,
-        recipient: &Address,
-        method: MethodNum,
-        params_id: BlockId,
-        value: &TokenAmount,
-        gas_limit: Option<Gas>,
-        flags: SendFlags,
-    ) -> Result<SendResult> {
-        let from = self.actor_id;
-        let read_only = self.read_only || flags.read_only();
-
-        if read_only && !value.is_zero() {
-            return Err(syscall_error!(ReadOnly; "cannot transfer value when read-only").into());
-        }
-
-        // Load parameters.
-        let params = if params_id == NO_DATA_BLOCK_ID {
-            None
-        } else {
-            Some(self.blocks.get(params_id)?.clone())
-        };
-
-        // Make sure we can actually store the return block.
-        if self.blocks.is_full() {
-            return Err(syscall_error!(LimitExceeded; "cannot store return block").into());
-        }
-
-        // Send.
-        let result = self.call_manager.with_transaction(|cm| {
-            cm.send::<Self>(
-                from, *recipient, method, params, value, gas_limit, read_only,
-            )
-        })?;
-
-        // Store result and return.
-        Ok(match result {
-            InvocationResult {
-                exit_code,
-                value: Some(blk),
-            } => {
-                let block_stat = blk.stat();
-                let block_id = self
-                    .blocks
-                    .put(blk)
-                    .or_fatal()
-                    .context("failed to store a valid return value")?;
-                SendResult {
-                    block_id,
-                    block_stat,
-                    exit_code,
-                }
-            }
-            InvocationResult {
-                exit_code,
-                value: None,
-            } => SendResult {
-                block_id: NO_DATA_BLOCK_ID,
-                block_stat: BlockStat { codec: 0, size: 0 },
-                exit_code,
-            },
-        })
     }
 }
 
@@ -566,9 +562,26 @@ where
             .call_manager
             .charge_gas(self.call_manager.price_list().on_verify_post(verify_info))?;
 
+        // Due to a bug on calibrationnet, we have some _valid_ StackedDRGWindow32GiBV1P1
+        // proofs that were deemed invalid on chain. This was fixed WITHOUT a network version check.
+        // As a result, we need to explicitly consider all such proofs invalid, ONLY on calibrationnet,
+        // and ONLY before epoch 498691,
+        let calibnet_chain_id = ChainID::from(314159);
+        let mut verify_info = verify_info.clone();
+
+        #[allow(clippy::collapsible_if)]
+        if self.call_manager.context().network.chain_id == calibnet_chain_id {
+            if self.call_manager.context().epoch <= 498691
+                && !verify_info.proofs.is_empty()
+                && verify_info.proofs[0].post_proof == StackedDRGWindow32GiBV1P1
+            {
+                verify_info.proofs[0].post_proof = StackedDRGWindow32GiBV1;
+            }
+        }
+
         // This is especially important to catch as, otherwise, a bad "post" could be undisputable.
         t.record(catch_and_log_panic("verifying post", || {
-            verify_post(verify_info)
+            verify_post(&verify_info)
         }))
     }
 
@@ -752,7 +765,7 @@ where
         match offset.cmp(&0) {
             Less => return Err(syscall_error!(IllegalArgument; "epoch {} is in the future", epoch).into()),
             Equal => return Err(syscall_error!(IllegalArgument; "cannot lookup the tipset cid for the current epoch").into()),
-            Greater => {},
+            Greater => {}
         }
 
         // Can't lookup tipset CIDs beyond finality.
@@ -928,7 +941,8 @@ where
             .call_manager
             .engine()
             .preload(self.call_manager.blockstore(), &[code_id])
-            .map_err(|_| syscall_error!(IllegalArgument; "failed to load actor code"))?;
+            .context("failed to install actor")
+            .or_illegal_argument()?;
 
         let t = self
             .call_manager
@@ -1048,7 +1062,7 @@ where
         if self.read_only {
             return Err(syscall_error!(ReadOnly; "cannot emit events while read-only").into());
         }
-        let len = raw_evt.len() as usize;
+        let len = raw_evt.len();
         let t = self
             .call_manager
             .charge_gas(self.call_manager.price_list().on_actor_event_validate(len))?;
@@ -1130,13 +1144,6 @@ fn validate_actor_event(evt: &ActorEvent) -> Result<()> {
     Ok(())
 }
 
-/// PoSt proof variants.
-enum ProofType {
-    #[allow(unused)]
-    Winning,
-    Window,
-}
-
 #[cfg_attr(feature = "tracing", instrument())]
 fn prover_id_from_u64(id: u64) -> ProverId {
     let mut prover_id = ProverId::default();
@@ -1171,18 +1178,17 @@ fn get_required_padding(
 #[cfg_attr(feature = "tracing", instrument())]
 fn to_fil_public_replica_infos(
     src: &[SectorInfo],
-    typ: ProofType,
+    typ: RegisteredPoStProof,
 ) -> Result<BTreeMap<SectorId, PublicReplicaInfo>> {
     let replicas = src
         .iter()
         .map::<core::result::Result<(SectorId, PublicReplicaInfo), String>, _>(
             |sector_info: &SectorInfo| {
                 let commr = commcid::cid_to_replica_commitment_v1(&sector_info.sealed_cid)?;
-                let proof = match typ {
-                    ProofType::Winning => sector_info.proof.registered_winning_post_proof()?,
-                    ProofType::Window => sector_info.proof.registered_window_post_proof()?,
-                };
-                let replica = PublicReplicaInfo::new(proof.try_into()?, commr);
+                if !check_valid_proof_type(typ, sector_info.proof) {
+                    return Err("invalid proof type".to_string());
+                }
+                let replica = PublicReplicaInfo::new(typ.try_into()?, commr);
                 Ok((SectorId::from(sector_info.sector_number), replica))
             },
         )
@@ -1192,6 +1198,34 @@ fn to_fil_public_replica_infos(
 }
 
 #[cfg_attr(feature = "tracing", instrument())]
+fn check_valid_proof_type(post_type: RegisteredPoStProof, seal_type: RegisteredSealProof) -> bool {
+    let proof_type_v1p1 = seal_type
+        .registered_window_post_proof()
+        .unwrap_or(RegisteredPoStProof::Invalid(-1));
+    let proof_type_v1 = match proof_type_v1p1 {
+        RegisteredPoStProof::StackedDRGWindow2KiBV1P1 => {
+            RegisteredPoStProof::StackedDRGWindow2KiBV1
+        }
+        RegisteredPoStProof::StackedDRGWindow8MiBV1P1 => {
+            RegisteredPoStProof::StackedDRGWindow8MiBV1
+        }
+        RegisteredPoStProof::StackedDRGWindow512MiBV1P1 => {
+            RegisteredPoStProof::StackedDRGWindow512MiBV1
+        }
+        RegisteredPoStProof::StackedDRGWindow32GiBV1P1 => {
+            RegisteredPoStProof::StackedDRGWindow32GiBV1
+        }
+        RegisteredPoStProof::StackedDRGWindow64GiBV1P1 => {
+            RegisteredPoStProof::StackedDRGWindow64GiBV1
+        }
+        _ => {
+            return false;
+        }
+    };
+
+    proof_type_v1 == post_type || proof_type_v1p1 == post_type
+}
+
 fn verify_seal(vi: &SealVerifyInfo) -> Result<bool> {
     let commr = commcid::cid_to_replica_commitment_v1(&vi.sealed_cid).or_illegal_argument()?;
     let commd = commcid::cid_to_data_commitment_v1(&vi.unsealed_cid).or_illegal_argument()?;
@@ -1232,8 +1266,18 @@ fn verify_post(verify_info: &WindowPoStVerifyInfo) -> Result<bool> {
     // Necessary to be valid bls12 381 element.
     randomness[31] &= 0x3f;
 
+    let proof_type = proofs[0].post_proof;
+
+    for proof in proofs {
+        if proof.post_proof != proof_type {
+            return Err(
+                syscall_error!(IllegalArgument; "all proof types must be the same (found both {:?} and {:?})", proof_type, proof.post_proof)
+                    .into(),
+            );
+        }
+    }
     // Convert sector info into public replica
-    let replicas = to_fil_public_replica_infos(challenged_sectors, ProofType::Window)?;
+    let replicas = to_fil_public_replica_infos(challenged_sectors, proof_type)?;
 
     // Convert PoSt proofs into proofs-api format
     let proofs: Vec<(proofs::RegisteredPoStProof, _)> = proofs

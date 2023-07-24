@@ -45,10 +45,15 @@ impl quickcheck::Arbitrary for PoStProof {
                 RegisteredPoStProof::StackedDRGWindow512MiBV1,
                 RegisteredPoStProof::StackedDRGWindow32GiBV1,
                 RegisteredPoStProof::StackedDRGWindow64GiBV1,
+                RegisteredPoStProof::StackedDRGWindow2KiBV1P1,
+                RegisteredPoStProof::StackedDRGWindow8MiBV1P1,
+                RegisteredPoStProof::StackedDRGWindow512MiBV1P1,
+                RegisteredPoStProof::StackedDRGWindow32GiBV1P1,
+                RegisteredPoStProof::StackedDRGWindow64GiBV1P1,
             ])
             .unwrap();
         PoStProof {
-            post_proof: (*registered_postproof).into(),
+            post_proof: *registered_postproof,
             proof_bytes: Vec::arbitrary(g),
         }
     }

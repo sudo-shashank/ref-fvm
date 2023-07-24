@@ -4,6 +4,46 @@ Changes to the reference FVM implementation.
 
 ## [Unreleased]
 
+## 3.5.0 [2023-06-27]
+
+Breaking Changes:
+
+- Update cid/multihash. This is a breaking change as it affects the API.
+- Make `Kernel::send` generic over the kernel that will be used by the called actor. This significantly simplifies testing.
+- Upgrade wasmtime to v10.
+
+Other Changes:
+
+- This version allows over-subscription on the instance pool when executing multiple messages in parallel. This means the number of parallel execution lanes is no longer limited by the address space (or no longer _as_ limited).
+
+## 3.4.0 [2023-05-04]
+
+Update wasmtime to 8.0.1. This is a breaking change if you use any other wasmtime version.
+
+## 3.3.1 [2023-04-26]
+
+This release contains a small hack for calibrationnet and is optional for users who only want to
+sync mainnet.
+
+## 3.3.0 [2023-04-23]
+
+- Fixes an issue with proof bindings.
+
+## 3.2.0 [2023-04-04]
+
+- Support nv19/nv20
+- Remove unused dependencies.
+- BREAKING: Upgrade proofs to version 14.0.0 (for nv19).
+- Switch build to rust stable (finally).
+
+## 3.1.0 [2023-03-09]
+
+Update proofs. Unfortunately, this is a breaking change in a minor release but we need to do the same on the v2 release as well. The correct solution is to introduce two crates, fvm1 and fvm2, but that's a future project.
+
+## 3.0.0 [2023-02-24]
+
+- Final release for NV18.
+
 ## 3.0.0-rc.1 [2022-02-13]
 
 - Removes an incorrect event size limit.

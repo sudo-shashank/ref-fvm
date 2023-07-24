@@ -1,6 +1,5 @@
 // Copyright 2021-2023 Protocol Labs
 // SPDX-License-Identifier: Apache-2.0, MIT
-use fil_malformed_syscall_actor::WASM_BINARY as MALFORMED_ACTOR_BINARY;
 use fvm::call_manager::backtrace::Cause;
 use fvm::executor::{ApplyFailure, ApplyKind, Executor};
 use fvm_integration_tests::dummy::DummyExterns;
@@ -14,6 +13,7 @@ use fvm_shared::error::ErrorNumber;
 use fvm_shared::message::Message;
 use fvm_shared::state::StateTreeVersion;
 use fvm_shared::version::NetworkVersion;
+use fvm_test_actors::wasm_bin::MALFORMED_SYSCALL_ACTOR_BINARY;
 use num_traits::Zero;
 
 mod bundles;
@@ -125,7 +125,7 @@ fn non_existing_syscall() {
 #[test]
 fn malformed_syscall_parameter() {
     // Get wasm bin
-    let wasm_bin = MALFORMED_ACTOR_BINARY.unwrap();
+    let wasm_bin = MALFORMED_SYSCALL_ACTOR_BINARY;
 
     // Instantiate tester
     let (sender, mut tester, actor_address) = instantiate_tester(wasm_bin);
@@ -157,7 +157,7 @@ fn malformed_syscall_parameter() {
     // Actor should panic
     assert_eq!(res.msg_receipt.exit_code.value(), 4);
 
-    // Should be unknown import
+    // Should have failed with an invalid proof type message.
     match res.failure_info.as_ref().unwrap() {
         ApplyFailure::MessageBacktrace(backtrace) => match backtrace.cause.as_ref().unwrap() {
             Cause::Syscall { error, message, .. } => {
