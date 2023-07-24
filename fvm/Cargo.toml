@@ -37,7 +37,7 @@ num_cpus = "1.13.0"
 log = "0.4.14"
 byteorder = "1.4.3"
 blake2b_simd = "1.0.0"
-fvm-wasm-instrument = "0.4.0"
+fvm-wasm-instrument = { path = "../../fvm-wasm-instrument" }
 yastl = "0.1.2"
 arbitrary = { version = "1.1.0", optional = true, features = ["derive"] }
 rand = "0.8.5"
@@ -74,7 +74,7 @@ arb = ["arbitrary", "quickcheck"]
 m2-native = []
 instrument-syscalls = []
 tracing = [ ]
-locations = [ "fuzzing-tracker/locations", "fuzzing-tracker/testing", "fvm_ipld_amt/tracing", "fvm_ipld_amt/locations", "fvm_ipld_encoding/locations", "fvm_ipld_encoding/tracing" ]
+locations = [ "fuzzing-tracker/locations", "fuzzing-tracker/testing", "fvm_ipld_amt/tracing", "fvm_ipld_amt/locations", "fvm_ipld_encoding/locations", "fvm_ipld_encoding/tracing", "fvm-wasm-instrument/locations", "fvm-wasm-instrument/tracing" ]
 wasmopt = [ ]
 hyperspace = []
 gas_calibration = []
