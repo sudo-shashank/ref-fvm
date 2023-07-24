@@ -851,6 +851,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "cpu-time"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e9e393a7668fe1fad3075085b86c781883000b4ede868f43627b34a87c8b7ded"
+dependencies = [
+ "libc",
+ "winapi",
+]
+
+[[package]]
 name = "cpufeatures"
 version = "0.2.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2321,14 +2331,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "fuzzing-tracker"
+version = "0.0.1"
+dependencies = [
+ "libc",
+ "proc-macro2",
+ "quote",
+ "serde",
+ "serde_json",
+ "serde_repr",
+ "serde_tuple",
+ "syn 1.0.109",
+]
+
+[[package]]
 name = "fvm"
 version = "3.5.0"
 dependencies = [
  "anyhow",
  "arbitrary",
+ "blake2b_simd",
+ "byteorder",
  "cid 0.10.1",
+ "cpu-time",
  "derive_more",
  "filecoin-proofs-api",
+ "fuzzing-tracker",
  "fvm",
  "fvm-wasm-instrument",
  "fvm_ipld_amt 0.6.1",
@@ -2372,10 +2400,9 @@ dependencies = [
 [[package]]
 name = "fvm-wasm-instrument"
 version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ddd62c1cbb59244314d761b57cb5d2bcc35e8b7bc8f3082d56980f69145c1be8"
 dependencies = [
  "anyhow",
+ "fuzzing-tracker",
  "wasm-encoder 0.20.0",
  "wasmparser 0.95.0",
  "wasmprinter",
@@ -2502,6 +2529,7 @@ dependencies = [
  "anyhow",
  "cid 0.10.1",
  "criterion",
+ "fuzzing-tracker",
  "fvm_ipld_blockstore 0.2.0",
  "fvm_ipld_encoding 0.4.0",
  "itertools 0.11.0",
@@ -2612,6 +2640,7 @@ version = "0.4.0"
 dependencies = [
  "anyhow",
  "cid 0.10.1",
+ "fuzzing-tracker",
  "fvm_ipld_blockstore 0.2.0",
  "multihash 0.18.1",
  "serde",
