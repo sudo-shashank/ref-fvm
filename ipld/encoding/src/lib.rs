@@ -4,7 +4,7 @@
 
 mod bytes;
 mod cbor;
-mod cbor_store;
+pub mod cbor_store;
 mod errors;
 pub mod ipld_block;
 mod raw;
