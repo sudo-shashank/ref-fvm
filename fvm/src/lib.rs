@@ -22,7 +22,7 @@ pub mod syscalls;
 pub mod gas;
 pub mod state_tree;
 
-mod blockstore;
+pub mod blockstore;
 
 #[cfg(not(feature = "testing"))]
 mod account_actor;
