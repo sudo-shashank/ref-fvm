@@ -433,8 +433,8 @@ impl Engine {
             .module_cache
             .lock()
             .expect("module_cache poisoned");
-        let size = match cache.get(k) {
-            Some(item) => item.size,
+        let (module, bin) = match cache.get(k) {
+            Some(item) => (item.clone(), wasm.to_vec()),
             None => {
                 let (module, bin) = self.load_raw(wasm)?;
                 cache.insert(*k, module.clone());
@@ -468,6 +468,7 @@ impl Engine {
         // stack limiter adds post/pre-ambles to call instructions; We want to do that
         // before injecting gas accounting calls to avoid this overhead in every single
         // block of code.
+        let now = ProcessTime::now();
         let raw_wasm = stack_limiter::inject(raw_wasm, self.inner.config.max_wasm_stack)
             .map_err(anyhow::Error::msg)?;
         unsafe { set_stack_limiter_time(now.elapsed().as_nanos()) }
@@ -510,7 +511,7 @@ impl Engine {
     /// Just for debugging and testing
     #[cfg(feature = "testing")]
     pub fn get_compiled(&self, raw_wasm: &Vec<u8>) -> anyhow::Result<Module> {
-        Ok(Module::from_binary(&self.0.engine, &raw_wasm)?)
+        Ok(Module::from_binary(&self.inner.engine, &raw_wasm)?)
     }
 
     /// Load compiled wasm code into the engine.
