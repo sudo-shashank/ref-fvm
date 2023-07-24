@@ -617,10 +617,7 @@ where
     /// Helper method to create a placeholder actor due to a send. This method does not execute any
     /// constructors.
     #[cfg_attr(feature = "tracing", instrument())]
-    fn create_placeholder_actor_from_send<K>(&mut self, addr: &Address) -> Result<ActorID>
-    where
-        K: Kernel<CallManager = Self>,
-    {
+    fn create_placeholder_actor_from_send(&mut self, addr: &Address) -> Result<ActorID> {
         let code_cid = self.builtin_actors().get_placeholder_code();
         let state = ActorState::new_empty(*code_cid, Some(*addr));
         self.create_actor_from_send(addr, state)
@@ -657,7 +654,7 @@ where
                     if read_only {
                         return Err(syscall_error!(ReadOnly; "cannot auto-create account {to} in read-only calls").into());
                     }
-                    self.create_placeholder_actor_from_send::<K>(&to)?
+                    self.create_placeholder_actor_from_send(&to)?
                 }
                 _ => return Err(
                     syscall_error!(NotFound; "actor does not exist or cannot be created: {}", to)
@@ -786,6 +783,7 @@ where
                 // If the invocation failed due to running out of exec_units, we have already
                 // detected it and returned OutOfGas above. Any other invocation failure is returned
                 // here as an Abort
+
                 Ok(res?)
             })();
 
@@ -979,7 +977,7 @@ impl EventsAccumulator {
             let root = Amt::new_from_iter_with_bit_width(
                 DiscardBlockstore,
                 EVENTS_AMT_BITWIDTH,
-                self.events.iter().cloned(),
+                self.events.iter(),
             )
             .context("failed to construct events AMT")
             .or_fatal()?;

@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## 0.6.1 [2023-07-06)
+
+Add the ability to efficiently diff two AMTs by calling the `diff` function in the root of the crate (thanks to @hanabi1224).
+
+## 0.6.0 [2023-06-28)
+
+Breaking Changes:
+
+- Update cid/multihash. This is a breaking change as it affects the API.
+
 ## 0.5.1
 
 Avoid flushing the AMT if nothing has changed.

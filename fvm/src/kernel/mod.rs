@@ -72,7 +72,6 @@ pub trait Kernel:
     + NetworkOps
     + RandomnessOps
     + SelfOps
-    + SendOps
     + LimiterOps
     + 'static
 {
@@ -106,6 +105,23 @@ pub trait Kernel:
 
     /// The kernel's underlying "machine".
     fn machine(&self) -> &<Self::CallManager as CallManager>::Machine;
+
+    /// Sends a message to another actor.
+    /// The method type parameter K is the type of the kernel to instantiate for
+    /// the receiving actor. This is necessary to support wrapping a kernel, so the outer
+    /// kernel can specify its Self as the receiver's kernel type, rather than the wrapped
+    /// kernel specifying its Self.
+    /// This method is part of the Kernel trait so it can refer to the Self::CallManager
+    /// associated type necessary to constrain K.
+    fn send<K: Kernel<CallManager = Self::CallManager>>(
+        &mut self,
+        recipient: &Address,
+        method: u64,
+        params: BlockId,
+        value: &TokenAmount,
+        gas_limit: Option<Gas>,
+        flags: SendFlags,
+    ) -> Result<SendResult>;
 }
 
 /// Network-related operations.
@@ -216,19 +232,6 @@ pub trait ActorOps {
 
     /// Returns the balance associated with an actor id
     fn balance_of(&self, actor_id: ActorID) -> Result<TokenAmount>;
-}
-
-/// Operations to send messages to other actors.
-pub trait SendOps {
-    fn send(
-        &mut self,
-        recipient: &Address,
-        method: u64,
-        params: BlockId,
-        value: &TokenAmount,
-        gas_limit: Option<Gas>,
-        flags: SendFlags,
-    ) -> Result<SendResult>;
 }
 
 /// Operations to query the circulating supply.

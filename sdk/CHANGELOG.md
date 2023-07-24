@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+## 3.3.0 [2023-06-28]
+
+Breaking Changes:
+
+- Update cid/multihash. This is a breaking change as it affects the API.
+
+## 3.2.0 [2023-04-04]
+
+- Switch to rust stable.
+- Update shared to 3.2.0 for nv19/nv20.
+
+## 3.0.0 [2023-02-24]
+
+- Final release for NV18.
+
 ## 3.0.0-alpha.24 [2023-02-06]
 
 - Update fvm shared for event changes.

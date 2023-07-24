@@ -1,0 +1,831 @@
+// Copyright 2021-2023 Protocol Labs
+// SPDX-License-Identifier: Apache-2.0, MIT
+
+mod concurrency;
+mod instance_pool;
+
+use std::any::{Any, TypeId};
+use std::collections::hash_map::Entry::{Occupied, Vacant};
+use std::collections::HashMap;
+use std::ops::Deref;
+use std::sync::{Arc, Mutex};
+
+use anyhow::{anyhow, Context};
+use cid::Cid;
+use cpu_time::ProcessTime;
+use fvm_ipld_blockstore::Blockstore;
+use fvm_shared::error::ExitCode;
+use fvm_wasm_instrument::gas_metering::GAS_COUNTER_NAME;
+use num_traits::Zero;
+use wasmtime::OptLevel::Speed;
+use wasmtime::{
+    Global, GlobalType, InstanceAllocationStrategy, Linker, Memory, MemoryType, Module, Mutability,
+    Val, ValType,
+};
+
+use crate::gas::{Gas, GasTimer, WasmGasPrices};
+use crate::machine::limiter::MemoryLimiter;
+use crate::machine::{Machine, NetworkConfig};
+use crate::syscalls::error::Abort;
+use crate::syscalls::{
+    bind_syscalls, charge_for_exec, charge_for_init, record_init_time, update_gas_available,
+    InvocationData,
+};
+use crate::Kernel;
+// Injected during build
+extern "Rust" {
+
+    fn set_compilation_time(time: u128) -> ();
+
+    fn set_stack_limiter_time(time: u128) -> ();
+
+    fn set_gas_metering_injection_time(time: u128) -> ();
+
+    fn set_machine_code_size(size: usize) -> ();
+}
+use fuzzing_tracker::instrument;
+#[cfg(feature = "tracing")]
+// Injected during build
+#[no_mangle]
+extern "Rust" {
+    fn set_custom_probe(line: u64) -> ();
+}
+
+#[cfg(feature = "wasmopt")]
+#[no_mangle]
+extern "Rust" {
+    fn extreme_wasmopt(name: Option<str>, wasm: &Vec<u8>) -> Vec<u8>;
+}
+
+use self::concurrency::EngineConcurrency;
+use self::instance_pool::InstancePool;
+
+/// The expected max stack depth used to determine the number of instances needed for a given
+/// concurrency level.
+const EXPECTED_MAX_STACK_DEPTH: u32 = 20;
+
+/// Container managing engines with different consensus-affecting configurations.
+pub struct MultiEngine {
+    engines: Mutex<HashMap<EngineConfig, EnginePool>>,
+    concurrency: u32,
+}
+
+/// The proper way of getting this struct is to convert from `NetworkConfig`
+#[derive(Clone, Eq, PartialEq, Hash)]
+pub struct EngineConfig {
+    pub max_call_depth: u32,
+    pub max_wasm_stack: u32,
+    pub max_inst_memory_bytes: u64,
+    pub concurrency: u32,
+    pub wasm_prices: &'static WasmGasPrices,
+    pub actor_redirect: Vec<(Cid, Cid)>,
+}
+
+impl EngineConfig {
+    fn instance_pool_size(&self) -> u32 {
+        std::cmp::min(
+            // Allocate at least one full call depth worth of stack, plus some per concurrent call
+            // we allow.
+            self.max_call_depth + EXPECTED_MAX_STACK_DEPTH * self.concurrency,
+            // Most machines simply can't handle any more than 48k instances (fails to allocate
+            // address space).
+            48 * 1024,
+        )
+    }
+}
+
+impl From<&NetworkConfig> for EngineConfig {
+    #[cfg_attr(feature = "tracing", instrument())]
+    fn from(nc: &NetworkConfig) -> Self {
+        EngineConfig {
+            max_call_depth: nc.max_call_depth,
+            max_wasm_stack: nc.max_wasm_stack,
+            max_inst_memory_bytes: nc.max_inst_memory_bytes,
+            wasm_prices: &nc.price_list.wasm_rules,
+            actor_redirect: nc.actor_redirect.clone(),
+            concurrency: 1,
+        }
+    }
+}
+
+impl MultiEngine {
+    #[cfg_attr(feature = "tracing", instrument())]
+    pub fn new(concurrency: u32) -> MultiEngine {
+        if concurrency == 0 {
+            panic!("concurrency must be positive");
+        }
+        MultiEngine {
+            engines: Mutex::new(HashMap::new()),
+            concurrency,
+        }
+    }
+
+    #[cfg_attr(feature = "tracing", instrument())]
+    pub fn get(&self, nc: &NetworkConfig) -> anyhow::Result<EnginePool> {
+        let mut engines = self
+            .engines
+            .lock()
+            .map_err(|_| anyhow::Error::msg("multiengine lock is poisoned"))?;
+
+        let mut ec: EngineConfig = nc.into();
+        ec.concurrency = self.concurrency;
+
+        let pool = match engines.entry(ec.clone()) {
+            Occupied(entry) => entry.into_mut(),
+            Vacant(entry) => entry.insert(EnginePool::new_default(ec)?),
+        };
+
+        Ok(pool.clone())
+    }
+}
+
+impl Default for MultiEngine {
+    fn default() -> Self {
+        Self::new(1)
+    }
+}
+
+#[cfg_attr(feature = "tracing", instrument())]
+fn wasmtime_config(ec: &EngineConfig) -> anyhow::Result<wasmtime::Config> {
+    if ec.concurrency < 1 {
+        return Err(anyhow!("concurrency limit must not be 0"));
+    }
+
+    let instance_count = ec.instance_pool_size();
+    let instance_memory_maximum_size = ec.max_inst_memory_bytes;
+    if instance_memory_maximum_size % wasmtime_environ::WASM_PAGE_SIZE as u64 != 0 {
+        return Err(anyhow!(
+            "requested memory limit {} not a multiple of the WASM_PAGE_SIZE {}",
+            instance_memory_maximum_size,
+            wasmtime_environ::WASM_PAGE_SIZE
+        ));
+    }
+
+    let mut c = wasmtime::Config::default();
+
+    // wasmtime default: OnDemand
+    // We want to pre-allocate all permissible memory to support the maximum allowed recursion limit.
+
+    let mut alloc_strat_cfg = wasmtime::PoolingAllocationConfig::default();
+    alloc_strat_cfg.instance_count(instance_count);
+
+    // Adjust the maximum amount of host memory that can be committed to an instance to
+    // match the static linear memory size we reserve for each slot.
+    alloc_strat_cfg.instance_memory_pages(
+        instance_memory_maximum_size / (wasmtime_environ::WASM_PAGE_SIZE as u64),
+    );
+    c.allocation_strategy(InstanceAllocationStrategy::Pooling(alloc_strat_cfg));
+
+    // wasmtime default: true
+    // We disable this as we always charge for memory regardless and `memory_init_cow` can baloon compiled wasm modules.
+    c.memory_init_cow(false);
+
+    // wasmtime default: 4GB
+    c.static_memory_maximum_size(instance_memory_maximum_size);
+
+    // wasmtime default: false
+    // We don't want threads, there is no way to ensure determisism
+    c.wasm_threads(false);
+
+    // wasmtime default: true
+    // simd isn't supported in wasm-instrument, but if we add support there, we can probably enable this.
+    // Note: stack limits may need adjusting after this is enabled
+    c.wasm_simd(false);
+
+    // wasmtime default: false
+    c.wasm_multi_memory(false);
+
+    // wasmtime default: false
+    c.wasm_memory64(false);
+
+    // wasmtime default: true
+    // Note: wasm-instrument only supports this at a basic level, for M2 we will
+    // need to add more advanced support
+    c.wasm_bulk_memory(true);
+
+    // wasmtime default: true
+    // we should be able to enable this for M2, just need to make sure that it's
+    // handled correctly in wasm-instrument
+    c.wasm_multi_value(false);
+
+    // wasmtime default: false
+    //
+    // from wasmtime docs:
+    // > When Cranelift is used as a code generation backend this will
+    // > configure it to replace NaNs with a single canonical value. This
+    // > is useful for users requiring entirely deterministic WebAssembly
+    // > computation. This is not required by the WebAssembly spec, so it is
+    // > not enabled by default.
+    c.cranelift_nan_canonicalization(true);
+
+    // wasmtime default: 512KiB
+    // Set to something much higher than the instrumented limiter.
+    // Note: This is in bytes, while the instrumented limit is in stack elements
+    c.max_wasm_stack(4 << 20);
+
+    // Execution cost accouting is done through wasm instrumentation,
+    c.consume_fuel(false);
+    c.epoch_interruption(false);
+
+    // Disable debug-related things, wasm-instrument doesn't fix debug info
+    // yet, so those aren't useful, just add overhead
+    c.debug_info(false);
+    c.generate_address_map(false);
+    c.cranelift_debug_verifier(false);
+    c.native_unwind_info(false);
+    #[allow(deprecated)] // TODO https://github.com/bytecodealliance/wasmtime/issues/5037
+    c.wasm_backtrace(false);
+    c.wasm_reference_types(false);
+
+    // Reiterate some defaults
+    c.guard_before_linear_memory(true);
+    c.parallel_compilation(true);
+
+    #[cfg(feature = "wasmtime/async")]
+    c.async_support(false);
+
+    // Doesn't seem to have significant impact on the time it takes to load code
+    // todo(M2): make sure this is guaranteed to run in linear time.
+    c.cranelift_opt_level(Speed);
+
+    Ok(c)
+}
+
+#[derive(Clone)]
+pub struct ModuleRecord {
+    pub module: Module,
+    /// Byte size of the original Wasm.
+    pub size: usize,
+}
+
+struct EngineInner {
+    concurrency_limit: EngineConcurrency,
+    instance_limit: InstancePool,
+
+    engine: wasmtime::Engine,
+
+    /// These two fields are used used in the store constructor to avoid resolve a chicken & egg
+    /// situation: We need the store before we can get the real values, but we need to create the
+    /// `InvocationData` before we can make the store.
+    ///
+    /// Alternatively, we could use `Option`s. But then we need to unwrap everywhere.
+    dummy_gas_global: Global,
+    dummy_memory: Memory,
+
+    module_cache: Mutex<HashMap<Cid, ModuleRecord>>,
+    instance_cache: Mutex<HashMap<TypeId, Box<dyn Any + Send>>>,
+    config: EngineConfig,
+
+    actor_redirect: HashMap<Cid, Cid>,
+}
+
+/// EnginePool represents a limited pool of engines.
+#[derive(Clone)]
+pub struct EnginePool(Arc<EngineInner>);
+
+impl EnginePool {
+    /// Acquire an [`Engine`]. This method will block until an [`Engine`] is available, and will
+    /// release the engine on drop.
+    #[cfg_attr(feature = "tracing", instrument())]
+    pub fn acquire(&self) -> Engine {
+        Engine {
+            id: self.0.concurrency_limit.acquire(),
+            inner: self.0.clone(),
+        }
+    }
+
+    #[cfg_attr(feature = "tracing", instrument())]
+    pub fn new_default(ec: EngineConfig) -> anyhow::Result<Self> {
+        EnginePool::new(&wasmtime_config(&ec)?, ec)
+    }
+
+    /// Create a new Engine from a wasmtime config.
+    #[cfg_attr(feature = "tracing", instrument())]
+    pub fn new(c: &wasmtime::Config, ec: EngineConfig) -> anyhow::Result<Self> {
+        let engine = wasmtime::Engine::new(c)?;
+
+        let mut dummy_store = wasmtime::Store::new(&engine, ());
+        let gg_type = GlobalType::new(ValType::I64, Mutability::Var);
+        let dummy_gg = Global::new(&mut dummy_store, gg_type, Val::I64(0))
+            .expect("failed to create dummy gas global");
+
+        let dummy_memory = Memory::new(&mut dummy_store, MemoryType::new(0, Some(0)))
+            .expect("failed to create dummy memory");
+
+        let actor_redirect = ec.actor_redirect.iter().cloned().collect();
+
+        Ok(EnginePool(Arc::new(EngineInner {
+            concurrency_limit: EngineConcurrency::new(ec.concurrency),
+            instance_limit: InstancePool::new(ec.instance_pool_size(), ec.max_call_depth),
+            engine,
+            dummy_memory,
+            dummy_gas_global: dummy_gg,
+            module_cache: Default::default(),
+            instance_cache: Mutex::new(HashMap::new()),
+            config: ec,
+            actor_redirect,
+        })))
+    }
+}
+
+struct Cache<K> {
+    linker: wasmtime::Linker<InvocationData<K>>,
+}
+
+/// An `Engine` represents a single, caching wasm engine. It should not be shared between concurrent
+/// call stacks.
+///
+/// The `Engine` will be returned to the [`EnginePool`] on drop.
+pub struct Engine {
+    id: u64,
+    inner: Arc<EngineInner>,
+}
+
+impl Deref for Engine {
+    type Target = wasmtime::Engine;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner.engine
+    }
+}
+
+impl Drop for Engine {
+    #[cfg_attr(feature = "tracing", instrument())]
+    fn drop(&mut self) {
+        self.inner.concurrency_limit.release();
+    }
+}
+
+impl Engine {
+    /// Loads an actor's Wasm code from the blockstore by CID, and prepares
+    /// it for execution by instantiating and caching the Wasm module. This
+    /// method errors if the code CID is not found in the store.
+    ///
+    /// Return the original byte code size.
+    #[cfg_attr(feature = "tracing", instrument())]
+    pub fn prepare_actor_code<BS: Blockstore>(
+        &self,
+        code_cid: &Cid,
+        blockstore: BS,
+    ) -> anyhow::Result<usize> {
+        let code_cid = self.with_redirect(code_cid);
+        if let Some(item) = self
+            .inner
+            .module_cache
+            .lock()
+            .expect("module_cache poisoned")
+            .get(code_cid)
+        {
+            return Ok(item.size);
+        }
+        let wasm = blockstore.get(code_cid)?.ok_or_else(|| {
+            anyhow!(
+                "no wasm bytecode in blockstore for CID {}",
+                &code_cid.to_string()
+            )
+        })?;
+        // compile and cache instantiated WASM module
+        log::trace!("Preparing Wasm bytecode");
+        Ok(self.prepare_wasm_bytecode(code_cid, &wasm)?.0.size)
+    }
+
+    /// Instantiates and caches the Wasm modules for the bytecodes addressed by
+    /// the supplied CIDs. Only uncached entries are actually fetched and
+    /// instantiated. Blockstore failures and entry inexistence shortcircuit
+    /// make this method return an Err immediately.
+    ///
+    /// Returns the total original byte size of the modules
+    #[cfg_attr(feature = "tracing", instrument())]
+    pub fn preload<'a, BS, I>(&self, blockstore: BS, cids: I) -> anyhow::Result<usize>
+    where
+        BS: Blockstore,
+        I: IntoIterator<Item = &'a Cid>,
+    {
+        let mut total_size = 0usize;
+        for cid in cids {
+            log::trace!("preloading code CID {cid}");
+            let size = self.prepare_actor_code(cid, &blockstore).with_context(|| {
+                anyhow!("could not prepare actor with code CID {}", &cid.to_string())
+            })?;
+            total_size += size;
+        }
+        Ok(total_size)
+    }
+
+    #[cfg_attr(feature = "tracing", instrument())]
+    fn with_redirect<'a>(&'a self, k: &'a Cid) -> &'a Cid {
+        match &self.inner.actor_redirect.get(k) {
+            Some(cid) => cid,
+            None => k,
+        }
+    }
+
+    /// Loads some Wasm code into the engine and prepares it for execution.
+    #[cfg_attr(feature = "tracing", instrument())]
+    pub fn prepare_wasm_bytecode(
+        &self,
+        k: &Cid,
+        wasm: &[u8],
+    ) -> anyhow::Result<(ModuleRecord, Vec<u8>)> {
+        let k = self.with_redirect(k);
+        let mut cache = self
+            .inner
+            .module_cache
+            .lock()
+            .expect("module_cache poisoned");
+        let size = match cache.get(k) {
+            Some(item) => item.size,
+            None => {
+                let (module, bin) = self.load_raw(wasm)?;
+                cache.insert(*k, module.clone());
+                log::trace!("Retrieving and inserting in cache");
+                (module, bin)
+            }
+        };
+        log::trace!("Returning from cache");
+        Ok((module, bin))
+    }
+
+    #[cfg_attr(feature = "tracing", instrument())]
+    fn load_raw(&self, raw_wasm: &[u8]) -> anyhow::Result<(ModuleRecord, Vec<u8>)> {
+        // Optimize First
+        let mut raw_wasm = raw_wasm.clone();
+        #[cfg(feature = "wasmopt")]
+        {
+            raw_wasm = extreme_wasmopt(None, &raw_wasm);
+        };
+        // First make sure that non-instrumented wasm is valid
+        Module::validate(&self.inner.engine, raw_wasm)
+            .map_err(anyhow::Error::msg)
+            .with_context(|| "failed to validate actor wasm")?;
+
+        log::trace!("Instrumenting wasm");
+        // Note: when adding debug mode support (with recorded syscall replay) don't instrument to
+        // avoid breaking debug info
+
+        use fvm_wasm_instrument::{gas_metering, stack_limiter};
+
+        // stack limiter adds post/pre-ambles to call instructions; We want to do that
+        // before injecting gas accounting calls to avoid this overhead in every single
+        // block of code.
+        let raw_wasm = stack_limiter::inject(raw_wasm, self.inner.config.max_wasm_stack)
+            .map_err(anyhow::Error::msg)?;
+        unsafe { set_stack_limiter_time(now.elapsed().as_nanos()) }
+
+        // inject gas metering based on a price list. This function will
+        // * add a new mutable i64 global import, gas.gas_counter
+        // * push a gas counter function which deduces gas from the global, and
+        //   traps when gas.gas_counter is less than zero
+        // * optionally push a function which wraps memory.grow instruction
+        //   making it charge gas based on memory requested
+        // * divide code into metered blocks, and add a call to the gas counter
+        //   function before entering each metered block
+        // * NOTE: Currently cannot instrument and charge for `table.grow` because the instruction
+        //   (code `0xFC 15`) uses what parity-wasm calls the `BULK_PREFIX` but it was added later in
+        //   https://github.com/WebAssembly/reference-types/issues/29 and is not recognised by the
+        //   parity-wasm module parser, so the contract cannot grow the tables.
+        let now = ProcessTime::now();
+        log::trace!("Injecting gas metering");
+        let raw_wasm = gas_metering::inject(&raw_wasm, self.inner.config.wasm_prices, "gas")
+            .map_err(|_| anyhow::Error::msg("injecting gas counter failed"))?;
+        unsafe { set_gas_metering_injection_time(now.elapsed().as_nanos()) }
+
+        let now = ProcessTime::now();
+        log::trace!("Compiling");
+        let module = Module::from_binary(&self.inner.engine, &raw_wasm)?;
+        unsafe { set_compilation_time(now.elapsed().as_nanos()) }
+        let machine_code = module.serialize()?;
+        let machine_code_len = machine_code.len();
+        unsafe { set_machine_code_size(machine_code_len) }
+
+        Ok((
+            ModuleRecord {
+                module,
+                size: raw_wasm.len(),
+            },
+            raw_wasm,
+        ))
+    }
+
+    /// Just for debugging and testing
+    #[cfg(feature = "testing")]
+    pub fn get_compiled(&self, raw_wasm: &Vec<u8>) -> anyhow::Result<Module> {
+        Ok(Module::from_binary(&self.0.engine, &raw_wasm)?)
+    }
+
+    /// Load compiled wasm code into the engine.
+    ///
+    /// # Safety
+    ///
+    /// See [`wasmtime::Module::deserialize`] for safety information.
+    #[cfg_attr(feature = "tracing", instrument())]
+    pub unsafe fn load_compiled(&self, k: &Cid, compiled: &[u8]) -> anyhow::Result<Module> {
+        let k = self.with_redirect(k);
+        let mut cache = self
+            .inner
+            .module_cache
+            .lock()
+            .expect("module_cache poisoned");
+        let module = match cache.get(k) {
+            Some(m) => m.module.clone(),
+            None => {
+                let module = Module::deserialize(&self.inner.engine, compiled)?;
+                cache.insert(
+                    *k,
+                    ModuleRecord {
+                        module: module.clone(),
+                        size: compiled.len(),
+                    },
+                );
+                module
+            }
+        };
+        Ok(module)
+    }
+
+    /// Lookup a loaded wasmtime module.
+    #[cfg_attr(feature = "tracing", instrument())]
+    pub fn get_module(
+        &self,
+        blockstore: &impl Blockstore,
+        k: &Cid,
+    ) -> anyhow::Result<Option<Module>> {
+        let k = self.with_redirect(k);
+        match self
+            .inner
+            .module_cache
+            .lock()
+            .expect("module_cache poisoned")
+            .entry(*k)
+        {
+            Occupied(v) => Ok(Some(v.get().module.clone())),
+            Vacant(v) => blockstore
+                .get(k)
+                .context("failed to lookup wasm module in blockstore")?
+                .map(|raw_wasm| Ok(v.insert(self.load_raw(&raw_wasm)?.0).module.clone()))
+                .transpose(),
+        }
+    }
+
+    /// This returns an `Abort` as it may need to execute initialization code, charge gas, etc.
+    #[cfg_attr(feature = "tracing", instrument())]
+    pub fn instantiate<K: Kernel>(
+        &self,
+        store: &mut wasmtime::Store<InvocationData<K>>,
+        k: &Cid,
+    ) -> Result<Option<wasmtime::Instance>, Abort> {
+        let k = self.with_redirect(k);
+        let mut instance_cache = self.inner.instance_cache.lock().expect("cache poisoned");
+
+        let type_id = TypeId::of::<K>();
+        let cache: &mut Cache<K> = match instance_cache.entry(type_id) {
+            Occupied(e) => &mut *e
+                .into_mut()
+                .downcast_mut()
+                .expect("invalid instance cache entry"),
+            Vacant(e) => &mut *e
+                .insert({
+                    let mut linker: Linker<InvocationData<K>> = Linker::new(&self.inner.engine);
+                    linker.allow_shadowing(true);
+
+                    bind_syscalls(&mut linker).map_err(Abort::Fatal)?;
+                    Box::new(Cache { linker })
+                })
+                .downcast_mut()
+                .expect("invalid instance cache entry"),
+        };
+        let gas_global = store.data_mut().avail_gas_global;
+        cache
+            .linker
+            .define(&store, "gas", GAS_COUNTER_NAME, gas_global)
+            .context("failed to define gas counter")
+            .map_err(Abort::Fatal)?;
+
+        let mut module_cache = self
+            .inner
+            .module_cache
+            .lock()
+            .expect("module_cache poisoned");
+
+        let instantiate = |store: &mut wasmtime::Store<InvocationData<K>>, module| {
+            // Before we instantiate the module, we should make sure the user has sufficient gas to
+            // pay for the minimum memory requirements. The module instrumentation in `inject` only
+            // adds code to charge for _growing_ the memory, but not for the amount made accessible
+            // initially. The limits are checked by wasmtime during instantiation, though.
+            let t = charge_for_init(store, module).map_err(Abort::from_error_as_fatal)?;
+
+            // Pre-instantiate to catch any linker errors. These are considered fatal as it means
+            // the wasm module wasn't properly validated.
+            let pre_instance = cache
+                .linker
+                .instantiate_pre(module)
+                .context("failed to link actor module")?;
+
+            // Update the gas _just_ in case.
+            update_gas_available(store)?;
+            let res = pre_instance.instantiate(&mut *store);
+            charge_for_exec(store)?;
+
+            let inst = res.map_err(|e| {
+                // We can't really tell what type of error happened, so we have to assume that we
+                // either ran out of memory or trapped. Given that we've already type-checked the
+                // module, this is the most likely case anyways. That or there'a a bug in the FVM.
+                Abort::Exit(
+                    ExitCode::SYS_ILLEGAL_INSTRUCTION,
+                    format!("failed to instantiate module: {e}"),
+                    0,
+                )
+            })?;
+
+            // Record the time it took for the linker to instantiate the module.
+            // This should also include everything that happens above in this method.
+            // Note that this does _not_ contain the time it took the load the Wasm file,
+            // which could have been cached already.
+            record_init_time(store, t);
+
+            Ok(Some(inst))
+        };
+
+        match module_cache.entry(*k) {
+            Occupied(v) => instantiate(store, &v.get().module),
+            Vacant(v) => match store
+                .data()
+                .kernel
+                .machine()
+                .blockstore()
+                .get(k)
+                .context("failed to lookup wasm module in blockstore")
+                .map_err(Abort::Fatal)?
+            {
+                Some(raw_wasm) => instantiate(
+                    store,
+                    &v.insert(self.load_raw(&raw_wasm).map_err(Abort::Fatal)?.0)
+                        .module,
+                ),
+                None => Ok(None),
+            },
+        }
+    }
+
+    /// Construct a new wasmtime "store" from the given kernel.
+    #[cfg_attr(feature = "tracing", instrument())]
+    pub fn new_store<K: Kernel>(&self, mut kernel: K) -> wasmtime::Store<InvocationData<K>> {
+        // Take a new instance and put it into a drop-guard that removes the reservation when
+        // we're done.
+        #[must_use]
+        struct InstanceReservation(Arc<EngineInner>);
+
+        impl Drop for InstanceReservation {
+            fn drop(&mut self) {
+                self.0.instance_limit.put();
+            }
+        }
+
+        self.inner.instance_limit.take(self.id);
+        let reservation = InstanceReservation(self.inner.clone());
+
+        let memory_bytes = kernel.limiter_mut().memory_used();
+
+        let id = InvocationData {
+            kernel,
+            last_error: None,
+            avail_gas_global: self.inner.dummy_gas_global,
+            last_gas_available: Gas::zero(),
+            last_memory_bytes: memory_bytes,
+            last_charge_time: GasTimer::start(),
+            memory: self.inner.dummy_memory,
+        };
+
+        let mut store = wasmtime::Store::new(&self.inner.engine, id);
+        let ggtype = GlobalType::new(ValType::I64, Mutability::Var);
+        let gg = Global::new(&mut store, ggtype, Val::I64(0))
+            .expect("failed to create available_gas global");
+        store.data_mut().avail_gas_global = gg;
+
+        store.limiter(move |data| {
+            // Keep the reservation alive as long as the limiter is alive. The limiter limits the
+            // store to one instance and one memory, which is covered by the reservation.
+            let _ = &reservation;
+
+            // SAFETY: This is safe because WasmtimeLimiter is `repr(transparent)`.
+            // Unfortunately, we can't simply wrap the limiter as we need to return a reference.
+            let limiter: &mut WasmtimeLimiter<K::Limiter> = unsafe {
+                let limiter_ref = data.kernel.limiter_mut();
+                // (debug)-assert that these types have the same layout (guaranteed by
+                // `repr(transparent)`).
+                debug_assert_eq!(
+                    std::alloc::Layout::for_value(&*limiter_ref),
+                    std::alloc::Layout::new::<WasmtimeLimiter<K::Limiter>>()
+                );
+                // Then cast.
+                &mut *(limiter_ref as *mut K::Limiter as *mut WasmtimeLimiter<K::Limiter>)
+            };
+            limiter as &mut dyn wasmtime::ResourceLimiter
+        });
+
+        store
+    }
+}
+
+#[repr(transparent)]
+struct WasmtimeLimiter<L>(L);
+
+impl<L: MemoryLimiter> wasmtime::ResourceLimiter for WasmtimeLimiter<L> {
+    #[cfg_attr(feature = "tracing", instrument())]
+    fn memory_growing(
+        &mut self,
+        current: usize,
+        desired: usize,
+        maximum: Option<usize>,
+    ) -> anyhow::Result<bool> {
+        if maximum.map_or(false, |m| desired > m) {
+            return Ok(false);
+        }
+
+        Ok(self.0.grow_instance_memory(current, desired))
+    }
+
+    #[cfg_attr(feature = "tracing", instrument())]
+    fn table_growing(
+        &mut self,
+        current: u32,
+        desired: u32,
+        maximum: Option<u32>,
+    ) -> anyhow::Result<bool> {
+        if maximum.map_or(false, |m| desired > m) {
+            return Ok(false);
+        }
+        Ok(self.0.grow_instance_table(current, desired))
+    }
+
+    // The FVM allows one instance & one memory per store/kernel (for now).
+
+    fn instances(&self) -> usize {
+        1
+    }
+
+    fn memories(&self) -> usize {
+        1
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use wasmtime::ResourceLimiter;
+
+    use crate::engine::WasmtimeLimiter;
+    use crate::machine::limiter::MemoryLimiter;
+
+    #[derive(Default)]
+    struct Limiter {
+        memory: usize,
+    }
+    impl MemoryLimiter for Limiter {
+        fn memory_used(&self) -> usize {
+            unimplemented!()
+        }
+
+        fn grow_memory(&mut self, bytes: usize) -> bool {
+            self.memory += bytes;
+            true
+        }
+
+        fn with_stack_frame<T, G, F, R>(_: &mut T, _: G, _: F) -> R
+        where
+            G: Fn(&mut T) -> &mut Self,
+            F: FnOnce(&mut T) -> R,
+        {
+            unimplemented!()
+        }
+    }
+
+    #[test]
+    fn memory() {
+        let mut limits = WasmtimeLimiter(Limiter::default());
+        assert!(limits.memory_growing(0, 3, None).unwrap());
+        assert_eq!(limits.0.memory, 3);
+
+        // The maximum in the args takes precedence.
+        assert!(!limits.memory_growing(3, 4, Some(2)).unwrap());
+        assert_eq!(limits.0.memory, 3);
+
+        // Increase by 2.
+        assert!(limits.memory_growing(2, 4, None).unwrap());
+        assert_eq!(limits.0.memory, 5);
+    }
+
+    #[test]
+    fn table() {
+        let mut limits = WasmtimeLimiter(Limiter::default());
+        assert!(limits.table_growing(0, 3, None).unwrap());
+        assert_eq!(limits.0.memory, 3 * 8);
+
+        // The maximum in the args takes precedence.
+        assert!(!limits.table_growing(3, 4, Some(2)).unwrap());
+        assert_eq!(limits.0.memory, 3 * 8);
+
+        // Increase by 2.
+        assert!(limits.table_growing(2, 4, None).unwrap());
+        assert_eq!(limits.0.memory, 5 * 8);
+    }
+}

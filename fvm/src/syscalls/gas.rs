@@ -40,5 +40,5 @@ pub fn charge_gas(
 
 #[cfg_attr(feature="tracing", instrument())]
 pub fn available(context: Context<'_, impl Kernel>) -> Result<u64> {
-    Ok(context.kernel.gas_available().round_down() as u64)
+    Ok(context.kernel.gas_available().round_down())
 }
