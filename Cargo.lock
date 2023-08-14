@@ -1632,8 +1632,8 @@ dependencies = [
  "fvm",
  "fvm-wasm-instrument",
  "fvm_ipld_amt",
- "fvm_ipld_blockstore",
- "fvm_ipld_encoding",
+ "fvm_ipld_blockstore 0.2.0 (git+https://github.com/sudo-shashank/ref-fvm.git?rev=3ad5b90f)",
+ "fvm_ipld_encoding 0.4.0 (git+https://github.com/sudo-shashank/ref-fvm.git?rev=3ad5b90f)",
  "fvm_ipld_hamt",
  "fvm_shared",
  "lazy_static",
@@ -1683,9 +1683,9 @@ dependencies = [
  "futures",
  "fvm",
  "fvm_ipld_amt",
- "fvm_ipld_blockstore",
+ "fvm_ipld_blockstore 0.2.0 (git+https://github.com/sudo-shashank/ref-fvm.git?rev=3ad5b90f)",
  "fvm_ipld_car",
- "fvm_ipld_encoding",
+ "fvm_ipld_encoding 0.4.0 (git+https://github.com/sudo-shashank/ref-fvm.git?rev=3ad5b90f)",
  "fvm_ipld_hamt",
  "fvm_shared",
  "itertools 0.11.0",
@@ -1713,14 +1713,13 @@ dependencies = [
 
 [[package]]
 name = "fvm_ipld_amt"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b36fc2a2fd536e8fdf93644218b683ca153de352e8db7345aaf1c6c91e591762"
+version = "0.6.1"
+source = "git+https://github.com/sudo-shashank/ref-fvm.git?rev=8832c0c1#8832c0c1265b8e810a3c1ce9c6d205834edf6980"
 dependencies = [
  "anyhow",
  "cid",
- "fvm_ipld_blockstore",
- "fvm_ipld_encoding",
+ "fvm_ipld_blockstore 0.2.0 (git+https://github.com/sudo-shashank/ref-fvm.git?rev=8832c0c1)",
+ "fvm_ipld_encoding 0.4.0 (git+https://github.com/sudo-shashank/ref-fvm.git?rev=8832c0c1)",
  "itertools 0.11.0",
  "once_cell",
  "serde",
@@ -1730,8 +1729,17 @@ dependencies = [
 [[package]]
 name = "fvm_ipld_blockstore"
 version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "417f52f6915b9f9a68de8462e1cf46f14a2c16420f484b8d2066873de2ffe420"
+source = "git+https://github.com/sudo-shashank/ref-fvm.git?rev=3ad5b90f#3ad5b90f35085e26585e47674844bb72ef09fb06"
+dependencies = [
+ "anyhow",
+ "cid",
+ "multihash",
+]
+
+[[package]]
+name = "fvm_ipld_blockstore"
+version = "0.2.0"
+source = "git+https://github.com/sudo-shashank/ref-fvm.git?rev=8832c0c1#8832c0c1265b8e810a3c1ce9c6d205834edf6980"
 dependencies = [
  "anyhow",
  "cid",
@@ -1741,13 +1749,12 @@ dependencies = [
 [[package]]
 name = "fvm_ipld_car"
 version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "42a70f56d42a428d60b89440136428f8af7abc723dcf6d763d82e28d518a8141"
+source = "git+https://github.com/sudo-shashank/ref-fvm.git?rev=3ad5b90f#3ad5b90f35085e26585e47674844bb72ef09fb06"
 dependencies = [
  "cid",
  "futures",
- "fvm_ipld_blockstore",
- "fvm_ipld_encoding",
+ "fvm_ipld_blockstore 0.2.0 (git+https://github.com/sudo-shashank/ref-fvm.git?rev=3ad5b90f)",
+ "fvm_ipld_encoding 0.4.0 (git+https://github.com/sudo-shashank/ref-fvm.git?rev=3ad5b90f)",
  "integer-encoding",
  "serde",
  "thiserror",
@@ -1756,12 +1763,27 @@ dependencies = [
 [[package]]
 name = "fvm_ipld_encoding"
 version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "90608092e31d9a06236268c58f7c36668ab4b2a48afafe3a97e08f094ad7ae50"
+source = "git+https://github.com/sudo-shashank/ref-fvm.git?rev=3ad5b90f#3ad5b90f35085e26585e47674844bb72ef09fb06"
 dependencies = [
  "anyhow",
  "cid",
- "fvm_ipld_blockstore",
+ "fvm_ipld_blockstore 0.2.0 (git+https://github.com/sudo-shashank/ref-fvm.git?rev=3ad5b90f)",
+ "multihash",
+ "serde",
+ "serde_ipld_dagcbor",
+ "serde_repr",
+ "serde_tuple",
+ "thiserror",
+]
+
+[[package]]
+name = "fvm_ipld_encoding"
+version = "0.4.0"
+source = "git+https://github.com/sudo-shashank/ref-fvm.git?rev=8832c0c1#8832c0c1265b8e810a3c1ce9c6d205834edf6980"
+dependencies = [
+ "anyhow",
+ "cid",
+ "fvm_ipld_blockstore 0.2.0 (git+https://github.com/sudo-shashank/ref-fvm.git?rev=8832c0c1)",
  "multihash",
  "serde",
  "serde_ipld_dagcbor",
@@ -1773,15 +1795,14 @@ dependencies = [
 [[package]]
 name = "fvm_ipld_hamt"
 version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f01c65915bd7ab95ff973bb0bb7e03e8d43a43642c8f4b15407e42e4ffcc0d98"
+source = "git+https://github.com/sudo-shashank/ref-fvm.git?rev=3ad5b90f#3ad5b90f35085e26585e47674844bb72ef09fb06"
 dependencies = [
  "anyhow",
  "byteorder",
  "cid",
  "forest_hash_utils",
- "fvm_ipld_blockstore",
- "fvm_ipld_encoding",
+ "fvm_ipld_blockstore 0.2.0 (git+https://github.com/sudo-shashank/ref-fvm.git?rev=3ad5b90f)",
+ "fvm_ipld_encoding 0.4.0 (git+https://github.com/sudo-shashank/ref-fvm.git?rev=3ad5b90f)",
  "libipld-core",
  "multihash",
  "once_cell",
@@ -1795,7 +1816,7 @@ name = "fvm_sdk"
 version = "2.4.0"
 dependencies = [
  "cid",
- "fvm_ipld_encoding",
+ "fvm_ipld_encoding 0.4.0 (git+https://github.com/sudo-shashank/ref-fvm.git?rev=3ad5b90f)",
  "fvm_shared",
  "lazy_static",
  "log",
@@ -1817,8 +1838,8 @@ dependencies = [
  "data-encoding",
  "data-encoding-macro",
  "filecoin-proofs-api",
- "fvm_ipld_blockstore",
- "fvm_ipld_encoding",
+ "fvm_ipld_blockstore 0.2.0 (git+https://github.com/sudo-shashank/ref-fvm.git?rev=3ad5b90f)",
+ "fvm_ipld_encoding 0.4.0 (git+https://github.com/sudo-shashank/ref-fvm.git?rev=3ad5b90f)",
  "lazy_static",
  "libsecp256k1",
  "log",
